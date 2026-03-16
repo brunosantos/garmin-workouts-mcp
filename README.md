@@ -46,7 +46,7 @@ TODO
 - MFA may be required if enabled on your account
 
 ### Security considerations
-the secret management can be considered insecure specially the use of long lived access tokens. We are working on alternatives such as short lived tokens with automatic refresh, or integration with external secret managers. In the meantime, you must pre-authenticate to obtain the necessary tokens for the server to function. Use this tool at your own discretion and be aware of the security implications of storing credentials and tokens on your machine. However the scopes of the tokens are limited to read-only access for activities and workout templates, and read-write access for workouts, which minimizes potential risks.
+the secret management can be considered insecure specially the use of long lived OAuth access tokens. We are working on alternatives such as short lived tokens with automatic refresh, or integration with external secret managers. In the meantime, you must pre-authenticate to obtain the necessary tokens for the server to function. Use this tool at your own discretion and be aware of the security implications of storing credentials and tokens on your machine. However the scopes of the tokens are limited to read-only access for activities and workout templates, and read-write access for workouts, which minimizes potential risks.
 
 #### Step 1: Pre-authenticate (One-time)
 Before adding to GitHub Copilot on VSCode, authenticate once in your terminal:
@@ -86,14 +86,14 @@ Add to your Claude Desktop MCP settings **WITHOUT** credentials:
 ```json
 {
   "mcpServers": {
-    "garmin": {
+    "garmin-workouts": {
       "command": "uvx",
       "args": [
         "--python",
         "3.12",
         "--from",
-        "git+https://github.com/brunosantos/garmin_mcp",
-        "garmin-mcp"
+        "git+https://github.com/brunosantos/garmin_workouts_mcp",
+        "garmin-workouts-mcp"
       ]
     }
   }
@@ -117,13 +117,13 @@ Your Garmin data is now available in VSCode Copilot!
 ```
 {
   "mcpServers": {
-    "garmin-local": {
+    "garmin-workouts-local": {
       "command": "uv",
       "args": [
         "--directory",
-        "<full path to your local repository>/garmin_mcp",
+        "<full path to your local repository>/garmin_workouts_mcp",
         "run",
-        "garmin-mcp"
+        "garmin-workouts-mcp"
       ]
     }
   }
@@ -137,7 +137,7 @@ Your Garmin data is now available in VSCode Copilot!
 The Inspector runs directly through npx without requiring installation. Run from the project root:
 
 ```bash
-npx @modelcontextprotocol/inspector uv run garmin-mcp
+npx @modelcontextprotocol/inspector uv run garmin--workouts-mcp
 ```
 
 You'll be able to inspect and test the tools.
