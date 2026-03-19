@@ -71,41 +71,6 @@ def test_activity_details(client, activity_id):
     except Exception as e:
         print(f"ERROR: Failed to retrieve activity details: {str(e)}")
 
-def test_health_data(client):
-    """Test retrieving health data for today"""
-    if not client:
-        return
-
-    today = datetime.date.today().strftime("%Y-%m-%d")
-    print(f"\nTesting health data for {today}:")
-
-    # Test steps data
-    try:
-        steps_data = client.get_steps_data(today)
-        print("\nSteps Data:")
-        print(f"Steps: {steps_data.get('steps', 0)}")
-        print(f"Goal: {steps_data.get('dailyStepGoal', 0)}")
-    except Exception as e:
-        print(f"ERROR: Failed to retrieve steps data: {str(e)}")
-
-    # Test heart rate data
-    try:
-        hr_data = client.get_heart_rates(today)
-        print("\nHeart Rate Data:")
-        print(f"Resting HR: {hr_data.get('restingHeartRate', 0)} bpm")
-    except Exception as e:
-        print(f"ERROR: Failed to retrieve heart rate data: {str(e)}")
-
-    # Test sleep data
-    try:
-        sleep_data = client.get_sleep_data(today)
-        daily_sleep_data = sleep_data.get('dailySleepDTO', sleep_data)
-        print("\nSleep Data:")
-        sleep_score = daily_sleep_data.get('sleepScoreTotal', 0)
-        print(f"Sleep Score: {sleep_score}")
-    except Exception as e:
-        print(f"ERROR: Failed to retrieve sleep data: {str(e)}")
-
 if __name__ == "__main__":
     client = test_garmin_login()
     if client:
