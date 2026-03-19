@@ -108,6 +108,43 @@ Your Garmin data is now available in VSCode Copilot!
 
 ---
 
+### Usage with VS Code
+
+> **Prerequisite:** Complete [Step 1: Pre-authenticate](#step-1-pre-authenticate-one-time) before configuring VS Code.
+
+For quick installation, use one of the one-click install buttons below:
+
+[![Install with UV in VS Code](https://img.shields.io/badge/VS_Code-UV-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=garmin-workouts&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22git%2Bhttps%3A//github.com/brunosantos/garmin_workouts_mcp%22%2C%22garmin-workouts-mcp%22%5D%7D) [![Install with UV in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-UV-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=garmin-workouts&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22git%2Bhttps%3A//github.com/brunosantos/garmin_workouts_mcp%22%2C%22garmin-workouts-mcp%22%5D%7D&quality=insiders)
+
+For manual installation, you can configure the MCP server using one of these methods:
+
+**Method 1: User Configuration (Recommended)** Add the configuration to your user-level MCP configuration file. Open the Command Palette (`Ctrl + Shift + P`) and run `MCP: Open User Configuration`. This will open your user `mcp.json` file where you can add the server configuration.
+
+**Method 2: Workspace Configuration** Alternatively, you can add the configuration to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.
+
+> For more details about MCP configuration in VS Code, see the [official VS Code MCP documentation](https://code.visualstudio.com/docs/copilot/customization/mcp-servers).
+
+```json
+{
+  "servers": {
+    "garmin-workouts": {
+      "command": "uvx",
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/brunosantos/garmin_workouts_mcp",
+        "garmin-workouts-mcp"
+      ]
+    }
+  }
+}
+```
+
+**Important:** No `GARMIN_EMAIL` or `GARMIN_PASSWORD` needed in config! The server uses your saved tokens from the pre-authentication step.
+
+---
+
 ### Development Setup
 
 #### Directly from your local copy of the repository:
