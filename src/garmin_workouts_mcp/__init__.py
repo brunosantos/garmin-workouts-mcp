@@ -36,7 +36,7 @@ def get_mfa() -> str:
         print(
             "\nERROR: MFA code required but no interactive terminal available.\n"
             "Please run 'garmin-mcp-auth' in your terminal first.\n"
-            "See: https://github.com/Taxuspt/garmin_mcp#mfa-setup\n",
+            "See: https://github.com/brunosantos/garmin-workouts-mcp?tab=readme-ov-file#step-1-pre-authenticate-one-time\n",
             file=sys.stderr,
         )
         raise RuntimeError("MFA required but non-interactive environment")
@@ -85,14 +85,6 @@ def init_api(email, password):
             file=sys.stderr,
         )
 
-        # Using Oauth1 and Oauth2 tokens from base64 encoded string
-        # print(
-        #     f"Trying to login to Garmin Connect using token data from file '{tokenstore_base64}'...\n"
-        # )
-        # dir_path = os.path.expanduser(tokenstore_base64)
-        # with open(dir_path, "r") as token_file:
-        #     tokenstore = token_file.read()
-
         # Suppress stderr for token validation to avoid confusing library errors
         old_stderr = sys.stderr
         sys.stderr = io.StringIO()
@@ -104,7 +96,7 @@ def init_api(email, password):
             sys.stderr = old_stderr
 
     except (FileNotFoundError, GarthHTTPError, GarminConnectAuthenticationError):
-        # Session is expired. You'll need to log in again
+        # Session has expired. You'll need to log in again
 
         # Check if we're in a non-interactive environment without credentials
         if not is_interactive_terminal() and (not email or not password):
