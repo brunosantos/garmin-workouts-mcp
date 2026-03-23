@@ -23,13 +23,19 @@ Once connected in Claude Desktop/VS Code Copilot, you can ask questions like:
 - "Show me the details of my latest run"
 - "Create a workout plan for next week based on my recent activities"
 - "When is my next scheduled workout?"
-### Ai Coach assisted queries:
-- "What are some workout templates I can use to improve my 5k time?"
 - "Create a workout plan with 30min easy run at conversational pace"
 - "Create a workout plan with 5km tempo run at 5:15 min/km pace"
 - "Create a workout plan with intervals: 6×400 m @ 4:10–4:20/km, 90s recovery (include 15 min warm-up/cool-down)"
+
+### AI Coach assisted queries:
+- "What are some workout templates I can use to improve my 5k time?"
 - "Based on my recent activities, what workouts should I do this week to prepare for a half marathon?"
 - "Create a workout plan for the next Hackney Half Marathon based on my recent activities, with a goal to run it in under 1h45."
+- "Upload a structured 45-minute threshold run workout and schedule it for next Tuesday"
+- "Look at my last 4 weeks of running and tell me if I'm overtraining or ready to increase mileage"
+- "How much time did I spend in each heart rate zone during my run last Sunday?"
+- "Compare my pace and HR across my last 5 runs — am I getting fitter?"
+- "I have a race in 6 weeks — build me a progressive weekly workout schedule and add each session to my calendar"
 
 ### Tool Coverage
 
@@ -77,7 +83,8 @@ This server uses the [garminconnect](https://github.com/cyberjunky/python-garmin
 ## Setup
 
 ### Security considerations
-**Note:** [Garmin’s official API program](https://developer.garmin.com/gc-developer-program/program-faq/) is available for Enterprise use only and not for individual developers to access. I tried to get access to the official API but was denied because I'm doing this as a Open Source individual project. For that reason I turner to other existing open source libraries. The `garminconnect` library uses reverse-engineered API endpoints and relies on OAuth tokens obtained through the Garmin Connect web/mobile login flow. The `garmin-mcp-auth` tool is a workaround to obtain these tokens for use with the MCP server, but it is not an official or long-term solution.
+> [!NOTE] 
+> [Garmin’s official API program](https://developer.garmin.com/gc-developer-program/program-faq/) is available for Enterprise use only and not for individual developers to access. I tried to get access to the official API but was denied because I'm doing this as a Open Source individual project. For that reason I turner to other existing open source libraries. The `garminconnect` library uses reverse-engineered API endpoints and relies on OAuth tokens obtained through the Garmin Connect web/mobile login flow. The `garmin-mcp-auth` tool is a workaround to obtain these tokens for use with the MCP server, but it is not an official or long-term solution.
 
 The Garmin Workouts MCP depends on the [Garmin connect library](https://github.com/cyberjunky/python-garminconnect) and that uses the [Garth library](https://github.com/matin/garth) for authentication, which relies on long lived OAuth tokens.
 The Garth library uses Garmin Connect’s mobile-app SSO flow to obtain and persist long-lived (one year) session tokens, which python-garminconnect (API Wrapper) then uses to call Garmin Connect API endpoints.
