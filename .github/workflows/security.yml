@@ -56,7 +56,7 @@ jobs:
 
     - name: Check Python syntax
       run: |
-        uv run python -m py_compile src/garmin_workouts_mcp/*.py
+        uv run python -m py_compile src/garmin_mcp/*.py
         echo "✅ All Python files have valid syntax"
 
     - name: Check import structure
@@ -64,6 +64,6 @@ jobs:
         uv run python -c "
         import sys
         sys.path.insert(0, 'src')
-        import garmin_workouts_mcp
+        import garmin_mcp
         print('✅ Package imports successfully')
         "

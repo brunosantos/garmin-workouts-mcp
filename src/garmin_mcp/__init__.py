@@ -11,10 +11,20 @@ from mcp.server.fastmcp import FastMCP
 from garth.exc import GarthHTTPError
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
-# Import required modules
-from garmin_workouts_mcp import activity_management
-from garmin_workouts_mcp import workouts
-from garmin_workouts_mcp import workout_templates
+# Import all modules
+from garmin_mcp import activity_management
+from garmin_mcp import health_wellness
+from garmin_mcp import user_profile
+from garmin_mcp import devices
+from garmin_mcp import gear_management
+from garmin_mcp import weight_management
+from garmin_mcp import challenges
+from garmin_mcp import training
+from garmin_mcp import workouts
+from garmin_mcp import workout_templates
+from garmin_mcp import data_management
+from garmin_mcp import womens_health
+from garmin_mcp import nutrition
 
 
 def is_interactive_terminal() -> bool:
@@ -36,7 +46,7 @@ def get_mfa() -> str:
         print(
             "\nERROR: MFA code required but no interactive terminal available.\n"
             "Please run 'garmin-mcp-auth' in your terminal first.\n"
-            "See: https://github.com/brunosantos/garmin-workouts-mcp?tab=readme-ov-file#step-1-pre-authenticate-one-time\n",
+            "See: https://github.com/Taxuspt/garmin_mcp#mfa-setup\n",
             file=sys.stderr,
         )
         raise RuntimeError("MFA required but non-interactive environment")
@@ -85,6 +95,14 @@ def init_api(email, password):
             file=sys.stderr,
         )
 
+        # Using Oauth1 and Oauth2 tokens from base64 encoded string
+        # print(
+        #     f"Trying to login to Garmin Connect using token data from file '{tokenstore_base64}'...\n"
+        # )
+        # dir_path = os.path.expanduser(tokenstore_base64)
+        # with open(dir_path, "r") as token_file:
+        #     tokenstore = token_file.read()
+
         # Suppress stderr for token validation to avoid confusing library errors
         old_stderr = sys.stderr
         sys.stderr = io.StringIO()
@@ -96,7 +114,7 @@ def init_api(email, password):
             sys.stderr = old_stderr
 
     except (FileNotFoundError, GarthHTTPError, GarminConnectAuthenticationError):
-        # Session has expired. You'll need to log in again
+        # Session is expired. You'll need to log in again
 
         # Check if we're in a non-interactive environment without credentials
         if not is_interactive_terminal() and (not email or not password):
@@ -194,16 +212,36 @@ def main():
 
     print("Garmin Connect client initialized successfully.", file=sys.stderr)
 
-    # Configure required modules with the Garmin client
+    # Configure all modules with the Garmin client
     activity_management.configure(garmin_client)
+    health_wellness.configure(garmin_client)
+    user_profile.configure(garmin_client)
+    devices.configure(garmin_client)
+    gear_management.configure(garmin_client)
+    weight_management.configure(garmin_client)
+    challenges.configure(garmin_client)
+    training.configure(garmin_client)
     workouts.configure(garmin_client)
+    data_management.configure(garmin_client)
+    womens_health.configure(garmin_client)
+    nutrition.configure(garmin_client)
 
     # Create the MCP app
     app = FastMCP("Garmin Connect v1.0")
 
-    # Register tools from required modules
+    # Register tools from all modules
     app = activity_management.register_tools(app)
+    app = health_wellness.register_tools(app)
+    app = user_profile.register_tools(app)
+    app = devices.register_tools(app)
+    app = gear_management.register_tools(app)
+    app = weight_management.register_tools(app)
+    app = challenges.register_tools(app)
+    app = training.register_tools(app)
     app = workouts.register_tools(app)
+    app = data_management.register_tools(app)
+    app = womens_health.register_tools(app)
+    app = nutrition.register_tools(app)
 
     # Register resources (workout templates)
     app = workout_templates.register_resources(app)

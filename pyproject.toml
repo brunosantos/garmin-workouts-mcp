@@ -3,9 +3,9 @@ requires = [ "hatchling",]
 build-backend = "hatchling.build"
 
 [project]
-name = "garmin-workouts-mcp"
+name = "garmin-mcp"
 version = "0.1.0"
-description = "MCP server to access Garmin activity and workout data"
+description = "MCP server to access Garmin data"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -16,11 +16,9 @@ dependencies = [
     "garth>=0.5.17,<0.6.0",
 ]
 
-keywords = ["garmin", "garmin connect", "mcp"]
-
 [project.scripts]
-garmin-workouts-mcp = "garmin_workouts_mcp:main"
-garmin-mcp-auth = "garmin_workouts_mcp.auth_cli:main"
+garmin-mcp = "garmin_mcp:main"
+garmin-mcp-auth = "garmin_mcp.auth_cli:main"
 
 [tool.uv]
 dev-dependencies = [
@@ -30,3 +28,5 @@ dev-dependencies = [
     "pytest-timeout>=2.3.1",
 ]
 
+[tool.uv.sources]
+garmin-mcp = { workspace = true }

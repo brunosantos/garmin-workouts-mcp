@@ -1,96 +1,59 @@
-# Garmin Workouts MCP Server
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/taxuspt-garmin-mcp-badge.png)](https://mseep.ai/app/taxuspt-garmin-mcp)
 
-The Garmin Workouts Model Context Protocol (MCP) server connects to Garmin Connect APIs and exposes your fitness and health data to AI agents that support the MCP standard. Users can use this server to access your Garmin activities, workouts, and workout templates from AI clients like Claude Desktop or VS Code Copilot, enabling users to query about their activity data, get insights and get AI generated workout plans.
+# Garmin MCP Server
 
-This project is in early development (v0.1) and currently supports read-only access to activities, workouts, and workout templates. 
+This Model Context Protocol (MCP) server connects to Garmin Connect and exposes your fitness and health data to Claude and other MCP-compatible clients.
 
-The source code is a simplified and refactored version of the original Garmin MCP server available at [garmin_mcp](https://github.com/Taxuspt/garmin_mcp). The original mcp solution is still available and maintained, but this forked version is designed to reduce the data access surface area to the AI agent and focus on the core features for creating workout training plans rather than exposing all the data and features of the Garmin Connect API.
-
-Garmin's API is accessed via the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library and also the garth 
+Garmin's API is accessed via the awesome [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library.
 
 ## Features
 
 - List recent activities with pagination support
 - Get detailed activity information
+- Access health metrics (steps, heart rate, sleep, stress, respiration)
+- View body composition data
+- Track training status and readiness
+- Manage gear and equipment
 - Access workouts and training plans
-- Browse workout templates
-
-## Usage Examples
-
-Once connected in Claude Desktop/VS Code Copilot, you can ask questions like:
-
-### Basic queries:
-- "Show me the details of my latest run"
-- "Create a workout plan for next week based on my recent activities"
-- "When is my next scheduled workout?"
-- "Create a workout plan with 30min easy run at conversational pace"
-- "Create a workout plan with 5km tempo run at 5:15 min/km pace"
-- "Create a workout plan with intervals: 6×400 m @ 4:10–4:20/km, 90s recovery (include 15 min warm-up/cool-down)"
-
-### AI Coach assisted queries:
-- "What are some workout templates I can use to improve my 5k time?"
-- "Based on my recent activities, what workouts should I do this week to prepare for a half marathon?"
-- "Create a workout plan for the next Hackney Half Marathon based on my recent activities, with a goal to run it in under 1h45."
-- "Upload a structured 45-minute threshold run workout and schedule it for next Tuesday"
-- "Look at my last 4 weeks of running and tell me if I'm overtraining or ready to increase mileage"
-- "How much time did I spend in each heart rate zone during my run last Sunday?"
-- "Compare my pace and HR across my last 5 runs — am I getting fitter?"
-- "I have a race in 6 weeks — build me a progressive weekly workout schedule and add each session to my calendar"
+- Weekly health aggregates (steps, stress, intensity minutes)
 
 ### Tool Coverage
 
-This MCP server implements tools for the following domains:
+This MCP server implements **96+ tools** covering ~89% of the [python-garminconnect](https://github.com/cyberjunky/python-garminconnect) library (v0.2.38):
 
-- ✅ **Activity Management** — 13 read-only tools 🏃
-  - 📋 `get_activities` — list activities with pagination support (newest first)
-  - 📅 `get_activities_by_date` — list activities between two dates, optionally filtered by type
-  - 📅 `get_activities_fordate` — list activities recorded on a specific date
-  - 🔍 `get_activity` — get detailed information for a single activity
-  - 📊 `get_activity_splits` — get lap/split data for an activity
-  - 📊 `get_activity_typed_splits` — get typed splits (run/walk/etc.) for an activity
-  - 📊 `get_activity_split_summaries` — get split summary statistics for an activity
-  - 🌤️ `get_activity_weather` — get weather conditions recorded during an activity
-  - ❤️ `get_activity_hr_in_timezones` — get heart rate distribution across HR zones for an activity
-  - 👟 `get_activity_gear` — get gear (shoes, bike, etc.) used for an activity
-  - 🏋️ `get_activity_exercise_sets` — get exercise sets for strength training activities
-  - 🏷️ `get_activity_types` — list all activity types supported by Garmin Connect
-  - 🔢 `count_activities` — get the total number of activities in the account
+- ✅ Activity Management (14 tools)
+- ✅ Health & Wellness (31 tools) - includes custom lightweight summary tools
+- ✅ Training & Performance (9 tools)
+- ✅ Workouts (8 tools)
+- ✅ Devices (7 tools)
+- ✅ Gear Management (5 tools)
+- ✅ Weight Tracking (5 tools)
+- ✅ Challenges & Badges (10 tools)
+- ✅ Nutrition (8 tools) - food logs, meals, custom foods, and food logging
+- ✅ Women's Health (3 tools)
+- ✅ User Profile (3 tools)
 
-- ✅ **Workouts** — 8 read/write tools 💪
-  - 📋 `get_workouts` — list all workouts in the Garmin Connect workout library
-  - 🔍 `get_workout_by_id` — get full details for a workout by numeric ID or UUID
-  - ⬆️ `upload_workout` — create a new workout from structured JSON data
-  - 🗑️ `delete_workout` — permanently delete a workout from the library
-  - 📅 `schedule_workout` — schedule a workout to a specific calendar date
-  - 📅 `get_scheduled_workouts` — list workouts scheduled on the calendar between two dates
-  - 🗓️ `get_training_plan_workouts` — get Garmin Coach / training plan workouts for a given week
-  - ⬇️ `download_workout` — download a workout in FIT file format
+### Intentionally Skipped Endpoints
 
-- ✅ **Workout Templates** — 5 MCP resources 📂
-  - 🏃 `workout://templates/simple-run` — basic warmup / run / cooldown structure
-  - ⚡ `workout://templates/interval-running` — interval training with repeat groups (6×400 m)
-  - 🎯 `workout://templates/tempo-run` — tempo run targeting a heart rate zone
-  - 🏋️ `workout://templates/strength-circuit` — strength training circuit with repeat groups
-  - 📖 `workout://reference/structure` — complete JSON structure reference for building workouts
+Some endpoints are not implemented due to performance or complexity considerations:
 
-### OAuth Scope Notes
+**High Data Volume:**
+- `get_activity_details()` - Returns large GPS tracks and chart data (50KB-500KB). Use `get_activity()` for summaries instead.
 
-This server uses the [garminconnect](https://github.com/cyberjunky/python-garminconnect) and [garth](https://github.com/matin/garth) libraries for authentication, which relies on Garmin's SSO OAuth tokens. The access token grants access to the Garmin Connect API with read and write permissions. The token scopes are not user-configurable in the auth library (`garth`). For that reason least-privilege access has been applied by design at the MCP Tool level as follows:
+**Specialized Workout Formats:**
+- `upload_running_workout()`, `upload_cycling_workout()`, `upload_swimming_workout()` - Sport-specific workout uploads. Use `upload_workout()` for general workouts.
 
-- **Activity Management** — read-only operations to list and retrieve activities. No write operations are implemented for activities (e.g. creating, updating, or deleting activities). No access to user profile or other sensitive data like GPS coordinates.
-- **Workouts** — read and write operations required (listing, uploading, scheduling, deleting workouts)
+**Maintenance & Destructive Operations:**
+- `delete_activity()`, `delete_blood_pressure()` - Destructive operations require careful consideration.
+- Internal/Auth methods: `login()`, `resume_login()`, `connectapi()`, `download()` - Handled automatically by the library.
+
+If you need any of these endpoints, please [open an issue](https://github.com/Taxuspt/garmin_mcp/issues).
 
 ## Setup
 
-### Security considerations
-> [!NOTE] 
-> [Garmin’s official API program](https://developer.garmin.com/gc-developer-program/program-faq/) is available for Enterprise use only and not for individual developers to access. I tried to get access to the official API but was denied because I'm doing this as a Open Source individual project. For that reason I turner to other existing open source libraries. The `garminconnect` library uses reverse-engineered API endpoints and relies on OAuth tokens obtained through the Garmin Connect web/mobile login flow. The `garmin-mcp-auth` tool is a workaround to obtain these tokens for use with the MCP server, but it is not an official or long-term solution.
+### Quick Start for Claude Desktop
 
-The Garmin Workouts MCP depends on the [Garmin connect library](https://github.com/cyberjunky/python-garminconnect) and that uses the [Garth library](https://github.com/matin/garth) for authentication, which relies on long lived OAuth tokens.
-The Garth library uses Garmin Connect’s mobile-app SSO flow to obtain and persist long-lived (one year) session tokens, which python-garminconnect (API Wrapper) then uses to call Garmin Connect API endpoints.
-The `garmin-mcp-auth` tool is a one-time setup utility that prompts you for your Garmin Connect credentials and MFA code (if enabled) to obtain these tokens. The tokens are then saved locally and used by the MCP server for authentication when making API requests to Garmin Connect.
-
-The secret management in this solution can be considered insecure specially the use of long lived OAuth access tokens. We are working on alternatives such as short lived tokens with automatic refresh or integration with external secret managers or keyvaults. In the meantime, you must pre-authenticate to obtain the necessary tokens for the server to function. Use this tool at your own discretion and be aware of the security implications of storing credentials and tokens on your machine. However the scopes of the MCP tools are limited to read-only access for activities and read-write access for workouts, which minimizes potential risks.
+The easiest way to use this MCP server with Claude Desktop is to authenticate once before adding the server to your configuration.
 
 #### Prerequisites
 
@@ -99,12 +62,13 @@ The secret management in this solution can be considered insecure specially the 
 - MFA may be required if enabled on your account
 
 #### Step 1: Pre-authenticate (One-time)
-Before adding to Claude Desktop or VS Code Copilot, authenticate once in your terminal:
+
+Before adding to Claude Desktop, authenticate once in your terminal:
 
 ```bash
 
 # Install and run authentication tool
-uvx --python 3.12 --from git+https://github.com/brunosantos/garmin-workouts-mcp garmin-mcp-auth
+uvx --python 3.12 --from git+https://github.com/Taxuspt/garmin_mcp garmin-mcp-auth
 
 # You'll be prompted for:
 # - Email (or set GARMIN_EMAIL env var)
@@ -119,19 +83,14 @@ You can verify your credentials at any time with
 uv run garmin-mcp-auth --verify
 ```
 
-**Note:** This will create a local file at `~/.garminconnect` with your Garmin Connect long lived tokens (one year). The MCP server will read from this file to authenticate API requests. These tokens will have a one year lifespan. 
+**Note:** You can also set credentials via environment variables:
+```bash
+GARMIN_EMAIL=your@email.com GARMIN_PASSWORD=secret garmin-mcp-auth
+```
 
+If you don't have MFA enabled you can also skip `garmin-mcp-auth` and pass `GARMIN_EMAIL` and `GARMIN_PASSWORD` as env variables directly to Claude Desktop (or other MCP client, if supported), see below for an example.
 
-> [!WARNING]  
-> Here be dragons 🐉. 
-> Long Lived Tokens are a security risk and against OAuth's best practices, but is a limitation of the underlying `garminconnect` library. Use with caution and be aware of the security implications.
-> For this reason I've restricted the scope of the MCP server to only the necessary API endpoints (read-only for activities and workout templates, read-write for workouts) to minimize potential risks.
-> I'm working on an alternative using short lived tokens with automatic refresh.
-
-### Usage with Claude Desktop
 #### Step 2: Configure Claude Desktop
-
-> **Prerequisite:** Complete [Step 1: Pre-authenticate](#step-1-pre-authenticate-one-time) before configuring Claude Desktop.
 
 Add to your Claude Desktop MCP settings **WITHOUT** credentials:
 
@@ -141,14 +100,14 @@ Add to your Claude Desktop MCP settings **WITHOUT** credentials:
 ```json
 {
   "mcpServers": {
-    "garmin-workouts": {
+    "garmin": {
       "command": "uvx",
       "args": [
         "--python",
         "3.12",
         "--from",
-        "git+https://github.com/brunosantos/garmin-workouts-mcp",
-        "garmin-workouts-mcp"
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
       ]
     }
   }
@@ -158,48 +117,118 @@ Add to your Claude Desktop MCP settings **WITHOUT** credentials:
 **Important:** No `GARMIN_EMAIL` or `GARMIN_PASSWORD` needed in config! The server uses your saved tokens.
 
 #### Step 3: Restart Claude Desktop
-Your Garmin data is now available in Claude Desktop !
+
+Your Garmin data is now available in Claude!
 
 ---
 
-### Usage with VS Code
+### Development Setup
 
-> **Prerequisite:** Complete [Step 1: Pre-authenticate](#step-1-pre-authenticate-one-time) before configuring VS Code.
+1. Install the required packages on a new environment:
 
-For quick installation, use one of the one-click install buttons below:
+```bash
+uv sync
+```
 
-[![Install with UV in VS Code](https://img.shields.io/badge/VS_Code-UV-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=garmin-workouts&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22git%2Bhttps%3A//github.com/brunosantos/garmin-workouts-mcp%22%2C%22garmin-workouts-mcp%22%5D%7D) [![Install with UV in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-UV-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=garmin-workouts&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22--python%22%2C%223.12%22%2C%22--from%22%2C%22git%2Bhttps%3A//github.com/brunosantos/garmin_workouts_mcp%22%2C%22garmin-workouts-mcp%22%5D%7D&quality=insiders)
+## Running the Server
 
-For manual installation, you can configure the MCP server using one of these methods:
+### Configuration
 
-**Method 1: User Configuration (Recommended)** Add the configuration to your user-level MCP configuration file. Open the Command Palette (`Ctrl + Shift + P`) and run `MCP: Open User Configuration`. This will open your user `mcp.json` file where you can add the server configuration.
+Your Garmin Connect credentials are read from environment variables:
 
-**Method 2: Workspace Configuration** Alternatively, you can add the configuration to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.
+- `GARMIN_EMAIL`: Your Garmin Connect email address
+- `GARMIN_EMAIL_FILE`: Path to a file containing your Garmin Connect email address
+- `GARMIN_PASSWORD`: Your Garmin Connect password
+- `GARMIN_PASSWORD_FILE`: Path to a file containing your Garmin Connect password
+- `GARMIN_IS_CN`: Set to `true` to use Garmin Connect China (garmin.cn) instead of the international version (default: `false`)
 
-> For more details about MCP configuration in VS Code, see the [official VS Code MCP documentation](https://code.visualstudio.com/docs/copilot/customization/mcp-servers).
+File-based secrets are useful in certain environments, such as inside a Docker container. Note that you cannot set both `GARMIN_EMAIL` and `GARMIN_EMAIL_FILE`, similarly you cannot set both `GARMIN_PASSWORD` and `GARMIN_PASSWORD_FILE`.
+
+### Garmin Connect China (garmin.cn)
+
+If you use Garmin Connect China (garmin.cn) instead of the international version, set the `GARMIN_IS_CN` environment variable to `true`:
+
+```bash
+# Pre-authenticate with Garmin Connect China
+GARMIN_IS_CN=true garmin-mcp-auth
+
+# Or use the CLI flag
+garmin-mcp-auth --is-cn
+```
+
+For Claude Desktop, add `GARMIN_IS_CN` to the `env` section:
 
 ```json
 {
-  "servers": {
-    "garmin-workouts": {
+  "mcpServers": {
+    "garmin": {
       "command": "uvx",
       "args": [
         "--python",
         "3.12",
         "--from",
-        "git+https://github.com/brunosantos/garmin-workouts-mcp",
-        "garmin-workouts-mcp"
-      ]
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
+      ],
+      "env": {
+        "GARMIN_IS_CN": "true"
+      }
     }
   }
 }
 ```
 
-**Important:** No `GARMIN_EMAIL` or `GARMIN_PASSWORD` needed in config! The server uses your saved tokens from the pre-authentication step.
+For Docker, add `GARMIN_IS_CN=true` to your `.env` file or uncomment it in `docker-compose.yml`.
 
----
+### Testing the server locally with MCP Inspector
 
-### Development Setup
+The Inspector runs directly through npx without requiring installation. Run from the project root:
+
+```bash
+npx @modelcontextprotocol/inspector uv run garmin-mcp
+```
+
+You'll be able to inspect and test the tools.
+
+### With Claude Desktop
+
+1. Create a configuration in Claude Desktop:
+
+Edit your Claude Desktop configuration file:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+
+You have two options to run the MCP locally with Claude.
+
+#### Directly from github without cloning the repo:
+
+1. Add this server configuration:
+
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "uvx",
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
+      ],
+      "env": {
+        "GARMIN_EMAIL": "YOUR_GARMIN_EMAIL",
+        "GARMIN_PASSWORD": "YOUR_GARMIN_PASSWORD"
+      }
+    }
+  }
+}
+```
+
+You might have to add the full path to `uvx` you can check the full path with `which uvx`
+
+2. Restart Claude Desktop
 
 #### Directly from your local copy of the repository:
 
@@ -208,31 +237,180 @@ For manual installation, you can configure the MCP server using one of these met
 ```
 {
   "mcpServers": {
-    "garmin-workouts-local": {
+    "garmin-local": {
       "command": "uv",
       "args": [
         "--directory",
-        "<full path to your local repository>/garmin-workouts-mcp",
+        "<full path to your local repository>/garmin_mcp",
         "run",
-        "garmin-workouts-mcp"
+        "garmin-mcp"
       ]
     }
   }
 }
 ```
 
-## Running the Server
+2. Restart Claude Desktop
 
-### Testing the server locally with MCP Inspector
+### With Docker
 
-The Inspector runs directly through npx without requiring installation. Run from the project root:
+Docker provides an isolated and consistent environment for running the MCP server.
+
+#### Quick Start with Docker Compose (Recommended)
+
+1. Create a `.env` file with your credentials:
 
 ```bash
-npx @modelcontextprotocol/inspector uv run garmin--workouts-mcp
+echo "GARMIN_EMAIL=your_email@example.com" > .env
+echo "GARMIN_PASSWORD=your_password" >> .env
 ```
 
-You'll be able to inspect and test the tools.
+2. Start the container:
 
+```bash
+docker compose up -d
+```
+
+3. View logs to monitor the server:
+
+```bash
+docker compose logs -f garmin-mcp
+```
+
+#### Using Docker Directly
+
+```bash
+# Build the image
+docker build -t garmin-mcp .
+
+# Run the container
+docker run -it \
+  -e GARMIN_EMAIL="your_email@example.com" \
+  -e GARMIN_PASSWORD="your_password" \
+  -v garmin-tokens:/root/.garminconnect \
+  garmin-mcp
+```
+
+#### Using File-Based Secrets (More Secure)
+
+For enhanced security, especially in production environments, use file-based secrets instead of environment variables:
+
+1. Create a secrets directory and add your credentials:
+
+```bash
+mkdir -p secrets
+echo "your_email@example.com" > secrets/garmin_email.txt
+echo "your_password" > secrets/garmin_password.txt
+chmod 600 secrets/*.txt
+```
+
+2. Edit [docker-compose.yml](docker-compose.yml) and uncomment the secrets section:
+
+```yaml
+services:
+  garmin-mcp:
+    environment:
+      - GARMIN_EMAIL_FILE=/run/secrets/garmin_email
+      - GARMIN_PASSWORD_FILE=/run/secrets/garmin_password
+    secrets:
+      - garmin_email
+      - garmin_password
+
+secrets:
+  garmin_email:
+    file: ./secrets/garmin_email.txt
+  garmin_password:
+    file: ./secrets/garmin_password.txt
+```
+
+3. Start the container:
+
+```bash
+docker compose up -d
+```
+
+#### Handling MFA with Docker
+
+If you have multi-factor authentication (MFA) enabled on your Garmin account:
+
+1. Run the container in interactive mode:
+
+```bash
+docker compose run --rm garmin-mcp
+```
+
+2. When prompted, enter your MFA code:
+
+```
+Garmin Connect MFA required. Please check your email/phone for the code.
+Enter MFA code: 123456
+```
+
+3. The OAuth tokens will be saved to the Docker volume (`garmin-tokens`), so you won't need to re-authenticate on subsequent runs.
+
+4. After MFA setup, you can run the container normally:
+
+```bash
+docker compose up -d
+```
+
+#### Docker Volume Management
+
+The OAuth tokens are stored in a persistent Docker volume to avoid re-authentication:
+
+```bash
+# List volumes
+docker volume ls
+
+# Inspect the tokens volume
+docker volume inspect garmin_mcp_garmin-tokens
+
+# Remove the volume (will require re-authentication)
+docker volume rm garmin_mcp_garmin-tokens
+```
+
+#### Using with Claude Desktop via Docker
+
+To use the Dockerized MCP server with Claude Desktop, you can configure it to communicate with the container. However, note that MCP servers typically communicate via stdio, which works best with direct process execution. For Docker-based deployments, consider using the standard `uvx` method shown in the [With Claude Desktop](#with-claude-desktop) section instead.
+
+
+## Usage Examples
+
+Once connected in Claude, you can ask questions like:
+
+- "Show me my recent activities"
+- "What was my sleep like last night?"
+- "How many steps did I take yesterday?"
+- "Show me the details of my latest run"
+
+## Troubleshooting
+
+### "Failed to spawn process: No such file or directory"
+
+If Claude Desktop can't find `uvx`, it's because `uvx` is not in the PATH that Claude Desktop uses. To fix this:
+
+1. Find where `uvx` is installed:
+```bash
+which uvx
+```
+
+2. Use the full path in your configuration. For example, if `uvx` is at `/Users/username/.cargo/bin/uvx`:
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "/Users/username/.cargo/bin/uvx",
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
+      ]
+    }
+  }
+}
+```
 
 ### Login Issues
 
@@ -241,6 +419,109 @@ If you encounter login issues:
 1. Verify your credentials are correct
 2. Check if Garmin Connect requires additional verification
 3. Ensure the garminconnect package is up to date
+
+### Logs
+
+For other issues, check the Claude Desktop logs at:
+
+- macOS: `~/Library/Logs/Claude/mcp-server-garmin.log`
+- Windows: `%APPDATA%\Claude\logs\mcp-server-garmin.log`
+
+### Garmin Connect Multi-Factor Authentication (MFA)
+
+#### Understanding MFA with MCP Servers
+
+MCP servers run as background processes without direct terminal access. If your Garmin account has MFA enabled, you must authenticate once using the pre-authentication tool before the server can run.
+
+#### Recommended: Pre-Authentication Tool
+
+The easiest way to handle MFA is using the dedicated authentication tool:
+
+```bash
+garmin-mcp-auth
+```
+
+This saves OAuth tokens to `~/.garminconnect` for future use. The server will automatically use these tokens when running in Claude Desktop or other MCP clients.
+
+**Additional Options:**
+
+```bash
+# Use environment variables for credentials
+GARMIN_EMAIL=you@example.com GARMIN_PASSWORD=secret garmin-mcp-auth
+
+# Verify existing tokens
+garmin-mcp-auth --verify
+
+# Force re-authentication (e.g., when tokens expire)
+garmin-mcp-auth --force-reauth
+
+# Use custom token location
+garmin-mcp-auth --token-path ~/.garmin_tokens
+```
+
+#### Alternative: Manual First Run
+
+You can also authenticate by running the server once interactively:
+
+```bash
+# Store credentials in files for security
+echo "your_email@example.com" > ~/.garmin_email
+echo "your_password" > ~/.garmin_password
+chmod 600 ~/.garmin_email ~/.garmin_password
+
+# Run server interactively to authenticate
+GARMIN_EMAIL_FILE=~/.garmin_email GARMIN_PASSWORD_FILE=~/.garmin_password \
+  uvx --python 3.12 --from git+https://github.com/Taxuspt/garmin_mcp garmin-mcp
+
+# Enter MFA code when prompted
+# Tokens will be saved automatically
+# Now add to Claude Desktop config without credentials
+```
+
+After initial authentication, configure Claude Desktop **without** credentials (tokens are already saved):
+
+```json
+{
+  "mcpServers": {
+    "garmin": {
+      "command": "uvx",
+      "args": [
+        "--python",
+        "3.12",
+        "--from",
+        "git+https://github.com/Taxuspt/garmin_mcp",
+        "garmin-mcp"
+      ]
+    }
+  }
+}
+```
+
+#### Using Docker with MFA
+
+If using Docker, follow the [Handling MFA with Docker](#handling-mfa-with-docker) section above for a streamlined experience with persistent token storage.
+
+#### Troubleshooting MFA
+
+**Error: "MFA authentication required but no interactive terminal available"**
+
+Solution:
+1. Open terminal
+2. Run: `garmin-mcp-auth`
+3. Enter credentials and MFA code
+4. Restart Claude Desktop
+
+**Token Expired**
+
+OAuth tokens expire periodically (approximately every 6 months). Re-authenticate:
+```bash
+garmin-mcp-auth --force-reauth
+```
+
+**Verify Tokens Work**
+```bash
+garmin-mcp-auth --verify
+```
 
 ## Testing
 
@@ -256,7 +537,7 @@ uv run pytest tests/integration/
 uv run pytest tests/integration/ -v
 
 # Run a specific test module
-uv run pytest tests/integration/test_activity_management_tools.py -v
+uv run pytest tests/integration/test_health_wellness_tools.py -v
 
 # Run end-to-end tests (requires real Garmin credentials)
 uv run pytest tests/e2e/ -m e2e -v
@@ -264,5 +545,5 @@ uv run pytest tests/e2e/ -m e2e -v
 
 ### Test Structure
 
-- **Integration tests** (18 tests): Test all MCP tools using FastMCP integration with mocked Garmin API responses
+- **Integration tests** (130 tests): Test all MCP tools using FastMCP integration with mocked Garmin API responses
 - **End-to-end tests** (4 tests): Test with real MCP server and Garmin API (requires valid credentials)

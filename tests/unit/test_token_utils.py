@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch, MagicMock
 
 import pytest
 
-from garmin_workouts_mcp.token_utils import (
+from garmin_mcp.token_utils import (
     get_token_path,
     get_token_base64_path,
     token_exists,
@@ -68,7 +68,7 @@ class TestTokenExists:
 
     def test_uses_default_path(self):
         """Test that default path is used when none provided."""
-        with patch("garmin_workouts_mcp.token_utils.get_token_path", return_value="/test/path"):
+        with patch("garmin_mcp.token_utils.get_token_path", return_value="/test/path"):
             with patch("pathlib.Path.exists", return_value=True):
                 assert token_exists() is True
 
@@ -82,8 +82,8 @@ class TestValidateTokens:
         assert is_valid is False
         assert "not found" in error.lower()
 
-    @patch("garmin_workouts_mcp.token_utils.token_exists")
-    @patch("garmin_workouts_mcp.token_utils.Garmin")
+    @patch("garmin_mcp.token_utils.token_exists")
+    @patch("garmin_mcp.token_utils.Garmin")
     def test_valid_tokens(self, mock_garmin, mock_exists):
         """Test validation with valid tokens."""
         mock_exists.return_value = True
@@ -100,8 +100,8 @@ class TestValidateTokens:
         mock_garmin_instance.login.assert_called_once()
         mock_garmin_instance.get_full_name.assert_called_once()
 
-    @patch("garmin_workouts_mcp.token_utils.token_exists")
-    @patch("garmin_workouts_mcp.token_utils.Garmin")
+    @patch("garmin_mcp.token_utils.token_exists")
+    @patch("garmin_mcp.token_utils.Garmin")
     def test_invalid_tokens_file_not_found(self, mock_garmin, mock_exists):
         """Test validation when token files not found."""
         mock_exists.return_value = True
@@ -113,8 +113,8 @@ class TestValidateTokens:
         assert is_valid is False
         assert "not found in" in error.lower()
 
-    @patch("garmin_workouts_mcp.token_utils.token_exists")
-    @patch("garmin_workouts_mcp.token_utils.Garmin")
+    @patch("garmin_mcp.token_utils.token_exists")
+    @patch("garmin_mcp.token_utils.Garmin")
     def test_invalid_tokens_auth_failed(self, mock_garmin, mock_exists):
         """Test validation when authentication fails."""
         from garth.exc import GarthHTTPError
@@ -132,8 +132,8 @@ class TestValidateTokens:
         assert is_valid is False
         assert "authentication" in error.lower()
 
-    @patch("garmin_workouts_mcp.token_utils.token_exists")
-    @patch("garmin_workouts_mcp.token_utils.Garmin")
+    @patch("garmin_mcp.token_utils.token_exists")
+    @patch("garmin_mcp.token_utils.Garmin")
     def test_invalid_tokens_api_error(self, mock_garmin, mock_exists):
         """Test validation when API call fails."""
         mock_exists.return_value = True
@@ -214,8 +214,8 @@ class TestGetTokenInfo:
         assert info["valid"] is False
         assert info["error"] == ""
 
-    @patch("garmin_workouts_mcp.token_utils.token_exists")
-    @patch("garmin_workouts_mcp.token_utils.validate_tokens")
+    @patch("garmin_mcp.token_utils.token_exists")
+    @patch("garmin_mcp.token_utils.validate_tokens")
     def test_token_info_exists_valid(self, mock_validate, mock_exists):
         """Test getting info for existing valid tokens."""
         mock_exists.return_value = True
@@ -230,8 +230,8 @@ class TestGetTokenInfo:
         assert info["valid"] is True
         assert info["error"] == ""
 
-    @patch("garmin_workouts_mcp.token_utils.token_exists")
-    @patch("garmin_workouts_mcp.token_utils.validate_tokens")
+    @patch("garmin_mcp.token_utils.token_exists")
+    @patch("garmin_mcp.token_utils.validate_tokens")
     def test_token_info_exists_invalid(self, mock_validate, mock_exists):
         """Test getting info for existing invalid tokens."""
         mock_exists.return_value = True
@@ -245,8 +245,8 @@ class TestGetTokenInfo:
         assert info["valid"] is False
         assert info["error"] == "Token expired"
 
-    @patch("garmin_workouts_mcp.token_utils.get_token_path")
-    @patch("garmin_workouts_mcp.token_utils.token_exists")
+    @patch("garmin_mcp.token_utils.get_token_path")
+    @patch("garmin_mcp.token_utils.token_exists")
     def test_uses_default_path(self, mock_exists, mock_get_path):
         """Test that default path is used when none provided."""
         mock_get_path.return_value = "~/.garminconnect"

@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import Mock
 from mcp.server.fastmcp import FastMCP
 
-from garmin_workouts_mcp import activity_management
+from garmin_mcp import activity_management
 from tests.fixtures.garmin_responses import (
     MOCK_ACTIVITIES,
     MOCK_ACTIVITY_DETAILS,

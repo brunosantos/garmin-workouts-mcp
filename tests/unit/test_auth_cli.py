@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch, call
 
 import pytest
 
-from garmin_workouts_mcp.auth_cli import (
+from garmin_mcp.auth_cli import (
     get_mfa,
     get_credentials,
     authenticate,
@@ -110,8 +110,8 @@ class TestGetCredentials:
 class TestAuthenticate:
     """Tests for authenticate function."""
 
-    @patch("garmin_workouts_mcp.auth_cli.token_exists")
-    @patch("garmin_workouts_mcp.auth_cli.validate_tokens")
+    @patch("garmin_mcp.auth_cli.token_exists")
+    @patch("garmin_mcp.auth_cli.validate_tokens")
     def test_existing_valid_tokens_no_force(self, mock_validate, mock_exists):
         """Test that existing valid tokens are not replaced without force flag."""
         mock_exists.return_value = True
@@ -124,10 +124,10 @@ class TestAuthenticate:
         mock_exists.assert_called_once()
         mock_validate.assert_called_once()
 
-    @patch("garmin_workouts_mcp.auth_cli.token_exists")
-    @patch("garmin_workouts_mcp.auth_cli.validate_tokens")
-    @patch("garmin_workouts_mcp.auth_cli.get_credentials")
-    @patch("garmin_workouts_mcp.auth_cli.Garmin")
+    @patch("garmin_mcp.auth_cli.token_exists")
+    @patch("garmin_mcp.auth_cli.validate_tokens")
+    @patch("garmin_mcp.auth_cli.get_credentials")
+    @patch("garmin_mcp.auth_cli.Garmin")
     def test_existing_valid_tokens_with_force(self, mock_garmin, mock_get_creds, mock_validate, mock_exists):
         """Test that force flag re-authenticates even with valid tokens."""
         mock_exists.return_value = True
@@ -148,9 +148,9 @@ class TestAuthenticate:
         assert result is True
         mock_garmin_instance.login.assert_called_once()
 
-    @patch("garmin_workouts_mcp.auth_cli.token_exists")
-    @patch("garmin_workouts_mcp.auth_cli.get_credentials")
-    @patch("garmin_workouts_mcp.auth_cli.Garmin")
+    @patch("garmin_mcp.auth_cli.token_exists")
+    @patch("garmin_mcp.auth_cli.get_credentials")
+    @patch("garmin_mcp.auth_cli.Garmin")
     def test_successful_authentication(self, mock_garmin, mock_get_creds, mock_exists):
         """Test successful authentication flow."""
         mock_exists.return_value = False
@@ -179,8 +179,8 @@ class TestAuthenticate:
             assert base64_file.exists()
             assert base64_file.read_text() == "base64data"
 
-    @patch("garmin_workouts_mcp.auth_cli.token_exists")
-    @patch("garmin_workouts_mcp.auth_cli.get_credentials")
+    @patch("garmin_mcp.auth_cli.token_exists")
+    @patch("garmin_mcp.auth_cli.get_credentials")
     def test_credential_error(self, mock_get_creds, mock_exists):
         """Test handling of credential errors."""
         mock_exists.return_value = False
@@ -191,9 +191,9 @@ class TestAuthenticate:
 
         assert result is False
 
-    @patch("garmin_workouts_mcp.auth_cli.token_exists")
-    @patch("garmin_workouts_mcp.auth_cli.get_credentials")
-    @patch("garmin_workouts_mcp.auth_cli.Garmin")
+    @patch("garmin_mcp.auth_cli.token_exists")
+    @patch("garmin_mcp.auth_cli.get_credentials")
+    @patch("garmin_mcp.auth_cli.Garmin")
     def test_authentication_error(self, mock_garmin, mock_get_creds, mock_exists):
         """Test handling of authentication errors."""
         from garminconnect import GarminConnectAuthenticationError
@@ -211,7 +211,7 @@ class TestAuthenticate:
 class TestVerifyTokens:
     """Tests for verify_tokens function."""
 
-    @patch("garmin_workouts_mcp.auth_cli.get_token_info")
+    @patch("garmin_mcp.auth_cli.get_token_info")
     def test_verify_nonexistent_tokens(self, mock_get_info):
         """Test verifying tokens that don't exist."""
         mock_get_info.return_value = {
@@ -225,7 +225,7 @@ class TestVerifyTokens:
         result = verify_tokens("/test/path")
         assert result is False
 
-    @patch("garmin_workouts_mcp.auth_cli.get_token_info")
+    @patch("garmin_mcp.auth_cli.get_token_info")
     def test_verify_valid_tokens(self, mock_get_info):
         """Test verifying valid tokens."""
         mock_get_info.return_value = {
@@ -239,7 +239,7 @@ class TestVerifyTokens:
         result = verify_tokens("/test/path")
         assert result is True
 
-    @patch("garmin_workouts_mcp.auth_cli.get_token_info")
+    @patch("garmin_mcp.auth_cli.get_token_info")
     def test_verify_invalid_tokens(self, mock_get_info):
         """Test verifying invalid tokens."""
         mock_get_info.return_value = {
@@ -258,7 +258,7 @@ class TestMain:
     """Tests for main function."""
 
     @patch("sys.argv", ["garmin-mcp-auth", "--verify"])
-    @patch("garmin_workouts_mcp.auth_cli.verify_tokens")
+    @patch("garmin_mcp.auth_cli.verify_tokens")
     def test_main_verify_mode(self, mock_verify):
         """Test main function in verify mode."""
         mock_verify.return_value = True
@@ -270,7 +270,7 @@ class TestMain:
         mock_verify.assert_called_once()
 
     @patch("sys.argv", ["garmin-mcp-auth"])
-    @patch("garmin_workouts_mcp.auth_cli.authenticate")
+    @patch("garmin_mcp.auth_cli.authenticate")
     def test_main_authenticate_mode_success(self, mock_authenticate):
         """Test main function in authenticate mode (success)."""
         mock_authenticate.return_value = True
@@ -282,7 +282,7 @@ class TestMain:
         mock_authenticate.assert_called_once()
 
     @patch("sys.argv", ["garmin-mcp-auth"])
-    @patch("garmin_workouts_mcp.auth_cli.authenticate")
+    @patch("garmin_mcp.auth_cli.authenticate")
     def test_main_authenticate_mode_failure(self, mock_authenticate):
         """Test main function in authenticate mode (failure)."""
         mock_authenticate.return_value = False
@@ -294,7 +294,7 @@ class TestMain:
         mock_authenticate.assert_called_once()
 
     @patch("sys.argv", ["garmin-mcp-auth", "--force-reauth"])
-    @patch("garmin_workouts_mcp.auth_cli.authenticate")
+    @patch("garmin_mcp.auth_cli.authenticate")
     def test_main_force_reauth(self, mock_authenticate):
         """Test main function with force-reauth flag."""
         mock_authenticate.return_value = True
@@ -307,7 +307,7 @@ class TestMain:
         assert mock_authenticate.call_args[0][2] is True
 
     @patch("sys.argv", ["garmin-mcp-auth", "--token-path", "/custom/path"])
-    @patch("garmin_workouts_mcp.auth_cli.authenticate")
+    @patch("garmin_mcp.auth_cli.authenticate")
     def test_main_custom_token_path(self, mock_authenticate):
         """Test main function with custom token path."""
         mock_authenticate.return_value = True
@@ -320,7 +320,7 @@ class TestMain:
         assert "/custom/path" in mock_authenticate.call_args[0][0]
 
     @patch("sys.argv", ["garmin-mcp-auth", "--is-cn"])
-    @patch("garmin_workouts_mcp.auth_cli.authenticate")
+    @patch("garmin_mcp.auth_cli.authenticate")
     def test_main_is_cn_flag(self, mock_authenticate):
         """Test main function with --is-cn flag."""
         mock_authenticate.return_value = True
@@ -333,7 +333,7 @@ class TestMain:
         assert mock_authenticate.call_args[0][3] is True
 
     @patch("sys.argv", ["garmin-mcp-auth"])
-    @patch("garmin_workouts_mcp.auth_cli.authenticate")
+    @patch("garmin_mcp.auth_cli.authenticate")
     def test_main_is_cn_env_var(self, mock_authenticate):
         """Test that GARMIN_IS_CN env var is used when --is-cn flag is not set."""
         mock_authenticate.return_value = True
@@ -347,7 +347,7 @@ class TestMain:
         assert mock_authenticate.call_args[0][3] is True
 
     @patch("sys.argv", ["garmin-mcp-auth"])
-    @patch("garmin_workouts_mcp.auth_cli.authenticate")
+    @patch("garmin_mcp.auth_cli.authenticate")
     def test_main_is_cn_default_false(self, mock_authenticate):
         """Test that is_cn defaults to False when neither flag nor env var is set."""
         mock_authenticate.return_value = True
@@ -365,9 +365,9 @@ class TestMain:
 class TestAuthenticateIsCn:
     """Tests for is_cn parameter in authenticate function."""
 
-    @patch("garmin_workouts_mcp.auth_cli.token_exists")
-    @patch("garmin_workouts_mcp.auth_cli.get_credentials")
-    @patch("garmin_workouts_mcp.auth_cli.Garmin")
+    @patch("garmin_mcp.auth_cli.token_exists")
+    @patch("garmin_mcp.auth_cli.get_credentials")
+    @patch("garmin_mcp.auth_cli.Garmin")
     def test_authenticate_passes_is_cn_true(self, mock_garmin, mock_get_creds, mock_exists):
         """Test that is_cn=True is passed to Garmin constructor."""
         mock_exists.return_value = False
@@ -393,9 +393,9 @@ class TestAuthenticateIsCn:
             prompt_mfa=get_mfa,
         )
 
-    @patch("garmin_workouts_mcp.auth_cli.token_exists")
-    @patch("garmin_workouts_mcp.auth_cli.get_credentials")
-    @patch("garmin_workouts_mcp.auth_cli.Garmin")
+    @patch("garmin_mcp.auth_cli.token_exists")
+    @patch("garmin_mcp.auth_cli.get_credentials")
+    @patch("garmin_mcp.auth_cli.Garmin")
     def test_authenticate_passes_is_cn_false(self, mock_garmin, mock_get_creds, mock_exists):
         """Test that is_cn=False is passed to Garmin constructor by default."""
         mock_exists.return_value = False
