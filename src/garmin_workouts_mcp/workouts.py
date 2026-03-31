@@ -470,6 +470,50 @@ def register_tools(app):
             return f"Error deleting workout: {str(e)}"
 
     @app.tool()
+    async def delete_workouts(workout_ids: list[int]) -> str:
+        """Delete multiple workouts from Garmin Connect in a single call
+
+        Permanently removes multiple workouts from your Garmin Connect workout library.
+
+        Args:
+            workout_ids: List of workout IDs to delete (get IDs from get_workouts)
+        """
+        results = []
+        for workout_id in workout_ids:
+            try:
+                url = f"{garmin_client.garmin_workouts}/workout/{workout_id}"
+                response = garmin_client.garth.delete("connectapi", url, api=True)
+
+                if response.status_code in (200, 204):
+                    results.append({
+                        "status": "success",
+                        "workout_id": workout_id,
+                        "message": f"Workout {workout_id} deleted successfully"
+                    })
+                else:
+                    results.append({
+                        "status": "failed",
+                        "workout_id": workout_id,
+                        "http_status": response.status_code,
+                        "message": f"Failed to delete workout: HTTP {response.status_code}"
+                    })
+            except Exception as e:
+                results.append({
+                    "status": "error",
+                    "workout_id": workout_id,
+                    "message": f"Error deleting workout: {str(e)}"
+                })
+
+        total = len(results)
+        succeeded = sum(1 for r in results if r["status"] == "success")
+        return json.dumps({
+            "total": total,
+            "succeeded": succeeded,
+            "failed": total - succeeded,
+            "results": results
+        }, indent=2)
+
+    @app.tool()
     async def get_scheduled_workouts(start_date: str, end_date: str) -> str:
         """Get scheduled workouts between two dates with curated summary list
 
