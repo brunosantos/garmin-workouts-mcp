@@ -553,31 +553,27 @@ def register_tools(app):
 
     @app.tool()
     async def schedule_workouts(schedules: list[dict]) -> str:
-        """Create and/or schedule multiple workouts in a single call
+        """Schedule multiple workouts to specific calendar dates
 
-        Each item can upload a new workout, schedule an existing one, or both.
-        Omit calendar_date to create a workout without scheduling it.
+        This adds workouts to your Garmin Connect calendar in a single call.
+        Each item can either reference an existing workout by ID, or provide
+        inline workout_data to upload-and-schedule in one step.
 
         Args:
-            schedules: List of items, each with:
-                - workout_id (int): ID of an existing workout to schedule.
-                  Required when workout_data is not provided.
-                - workout_data (dict): Inline workout JSON to upload first.
-                  When provided, workout_id is not required. Uses the same
-                  structure as upload_workout.
-                - calendar_date (str): Date in YYYY-MM-DD format to schedule
-                  the workout. Omit to create without scheduling.
+            schedules: List of workout schedules, each with:
+                - calendar_date (str): Date to schedule the workout in YYYY-MM-DD format (required)
+                - workout_id (int): ID of an existing workout to schedule (required unless workout_data is provided)
+                - workout_data (dict): Inline workout JSON to upload first, then schedule (optional).
+                  When provided, workout_id is not required. Uses the same structure as upload_workout.
 
         Examples:
             Schedule existing workouts by ID:
             [{"workout_id": 123456, "calendar_date": "2024-01-15"},
              {"workout_id": 789012, "calendar_date": "2024-01-17"}]
 
-            Upload without scheduling:
-            [{"workout_data": {"workoutName": "Easy Run", ...}}]
-
             Upload and schedule inline:
-            [{"calendar_date": "2024-01-15", "workout_data": {"workoutName": "Easy Run", ...}}]
+            [{"calendar_date": "2024-01-15", "workout_data": {"workoutName": "Easy Run", ...}},
+             {"workout_id": 789012, "calendar_date": "2024-01-17"}]
         """
         results = []
         for item in schedules:
@@ -585,10 +581,20 @@ def register_tools(app):
             calendar_date = item.get("calendar_date")
             workout_data = item.get("workout_data")
 
+            if calendar_date is None:
+                results.append({
+                    "status": "failed",
+                    "workout_id": workout_id,
+                    "scheduled_date": calendar_date,
+                    "message": "Missing required field: calendar_date"
+                })
+                continue
+
             if workout_id is None and workout_data is None:
                 results.append({
                     "status": "failed",
                     "workout_id": None,
+                    "scheduled_date": calendar_date,
                     "message": "Missing required fields: provide either workout_id or workout_data"
                 })
                 continue
@@ -597,29 +603,18 @@ def register_tools(app):
                 workout_name = None
 
                 if workout_data is not None:
-                    # Upload the workout first
+                    # Upload the workout first, then use the returned ID to schedule
                     _fix_hr_zone_steps(workout_data)
                     upload_result = garmin_client.upload_workout(workout_data)
                     if not isinstance(upload_result, dict) or upload_result.get('workoutId') is None:
                         results.append({
                             "status": "failed",
+                            "scheduled_date": calendar_date,
                             "message": "Upload succeeded but no workout_id returned"
                         })
                         continue
                     workout_id = upload_result['workoutId']
                     workout_name = upload_result.get('workoutName')
-
-                if calendar_date is None:
-                    # Create only — no scheduling requested
-                    entry = {
-                        "status": "created",
-                        "workout_id": workout_id,
-                        "message": f"Workout {workout_id} created successfully"
-                    }
-                    if workout_name:
-                        entry["workout_name"] = workout_name
-                    results.append(entry)
-                    continue
 
                 url = f"workout-service/schedule/{workout_id}"
                 response = garmin_client.garth.post("connectapi", url, json={"date": calendar_date})
@@ -651,7 +646,7 @@ def register_tools(app):
                 })
 
         total = len(results)
-        succeeded = sum(1 for r in results if r["status"] in ("success", "created"))
+        succeeded = sum(1 for r in results if r["status"] == "success")
         return json.dumps({
             "total": total,
             "succeeded": succeeded,
