@@ -634,12 +634,12 @@ async def test_schedule_workouts_partial_failure(app_with_workouts, mock_garmin_
 
 @pytest.mark.asyncio
 async def test_schedule_workouts_missing_fields(app_with_workouts, mock_garmin_client):
-    """Test schedule_workouts with missing required fields"""
+    """Test schedule_workouts fails when neither workout_id nor workout_data is provided"""
     import json as json_module
 
     result = await app_with_workouts.call_tool(
         "schedule_workouts",
-        {"schedules": [{"workout_id": 123456}]}  # missing calendar_date
+        {"schedules": [{"calendar_date": "2024-01-15"}]}  # missing workout_id and workout_data
     )
 
     assert result is not None
@@ -648,7 +648,7 @@ async def test_schedule_workouts_missing_fields(app_with_workouts, mock_garmin_c
     assert result_data["succeeded"] == 0
     assert result_data["failed"] == 1
     assert result_data["results"][0]["status"] == "failed"
-    assert "Missing required field" in result_data["results"][0]["message"]
+    assert "Missing required fields" in result_data["results"][0]["message"]
     mock_garmin_client.garth.post.assert_not_called()
 
 
@@ -738,21 +738,30 @@ async def test_schedule_workouts_mixed_inline_and_id(app_with_workouts, mock_gar
 
 
 @pytest.mark.asyncio
-async def test_schedule_workouts_missing_both_id_and_data(app_with_workouts, mock_garmin_client):
-    """Test schedule_workouts fails when neither workout_id nor workout_data is provided"""
+async def test_schedule_workouts_create_only(app_with_workouts, mock_garmin_client):
+    """Test schedule_workouts creates without scheduling when calendar_date is omitted"""
     import json as json_module
 
+    upload_result = {"workoutId": 999003, "workoutName": "Long Run"}
+    mock_garmin_client.upload_workout.return_value = upload_result
+
+    inline_data = {"workoutName": "Long Run", "sportType": {"sportTypeId": 1, "sportTypeKey": "running"}}
     result = await app_with_workouts.call_tool(
         "schedule_workouts",
-        {"schedules": [{"calendar_date": "2024-02-01"}]}
+        {"schedules": [{"workout_data": inline_data}]}  # no calendar_date
     )
 
     assert result is not None
     result_data = json_module.loads(result[0][0].text)
     assert result_data["total"] == 1
-    assert result_data["succeeded"] == 0
-    assert result_data["failed"] == 1
-    assert "workout_id" in result_data["results"][0]["message"] or "workout_data" in result_data["results"][0]["message"]
+    assert result_data["succeeded"] == 1
+    assert result_data["failed"] == 0
+    entry = result_data["results"][0]
+    assert entry["status"] == "created"
+    assert entry["workout_id"] == 999003
+    assert entry["workout_name"] == "Long Run"
+    assert "scheduled_date" not in entry
+    mock_garmin_client.upload_workout.assert_called_once_with(inline_data)
     mock_garmin_client.garth.post.assert_not_called()
 
 
