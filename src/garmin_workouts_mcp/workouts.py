@@ -393,6 +393,54 @@ def register_tools(app):
             return f"Error uploading workout: {str(e)}"
 
     @app.tool()
+    async def upload_workouts(workouts: list[dict]) -> str:
+        """Upload multiple workouts from JSON data in a single call
+
+        Creates multiple new workouts in Garmin Connect. Each item in the list
+        uses the same structure as upload_workout.
+
+        IMPORTANT: Step types must use Garmin's DTO format:
+        - Use "ExecutableStepDTO" for regular steps (warmup, interval, cooldown, recovery)
+        - Use "RepeatGroupDTO" for repeat/interval groups with numberOfIterations
+
+        IMPORTANT: For heart rate zone targets, use "zoneNumber" (1-5), NOT targetValueOne/targetValueTwo.
+
+        Args:
+            workouts: List of workout dictionaries, each containing workout structure
+                      (name, sport type, segments, etc.) — same format as upload_workout.
+        """
+        results = []
+        for workout_data in workouts:
+            try:
+                _fix_hr_zone_steps(workout_data)
+                result = garmin_client.upload_workout(workout_data)
+                if isinstance(result, dict):
+                    entry = {
+                        "status": "success",
+                        "workout_id": result.get('workoutId'),
+                        "name": result.get('workoutName'),
+                        "message": "Workout uploaded successfully"
+                    }
+                    results.append({k: v for k, v in entry.items() if v is not None})
+                else:
+                    results.append({"status": "success", "message": "Workout uploaded successfully"})
+            except Exception as e:
+                results.append({
+                    "status": "error",
+                    "name": workout_data.get('workoutName'),
+                    "message": f"Error uploading workout: {str(e)}"
+                })
+
+        total = len(results)
+        succeeded = sum(1 for r in results if r["status"] == "success")
+        return json.dumps({
+            "total": total,
+            "succeeded": succeeded,
+            "failed": total - succeeded,
+            "results": results
+        }, indent=2)
+
+    @app.tool()
     async def delete_workout(workout_id: int) -> str:
         """Delete a workout from Garmin Connect
 

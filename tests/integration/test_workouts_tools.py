@@ -543,6 +543,83 @@ async def test_upload_workout_exception(app_with_workouts, mock_garmin_client):
     assert result is not None
 
 
+# upload_workouts tests
+@pytest.mark.asyncio
+async def test_upload_workouts_single(app_with_workouts, mock_garmin_client):
+    """Test upload_workouts with a single workout"""
+    import json as json_module
+
+    mock_garmin_client.upload_workout.return_value = {"workoutId": 111, "workoutName": "Easy Run"}
+
+    result = await app_with_workouts.call_tool(
+        "upload_workouts",
+        {"workouts": [{"workoutName": "Easy Run", "sportType": {"sportTypeId": 1, "sportTypeKey": "running"}}]}
+    )
+
+    assert result is not None
+    result_data = json_module.loads(result[0][0].text)
+    assert result_data["total"] == 1
+    assert result_data["succeeded"] == 1
+    assert result_data["failed"] == 0
+    assert result_data["results"][0]["status"] == "success"
+    assert result_data["results"][0]["workout_id"] == 111
+    assert result_data["results"][0]["name"] == "Easy Run"
+    mock_garmin_client.upload_workout.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_upload_workouts_multiple(app_with_workouts, mock_garmin_client):
+    """Test upload_workouts with multiple workouts"""
+    import json as json_module
+
+    mock_garmin_client.upload_workout.side_effect = [
+        {"workoutId": 111, "workoutName": "Easy Run"},
+        {"workoutId": 222, "workoutName": "Tempo Run"},
+        {"workoutId": 333, "workoutName": "Long Run"},
+    ]
+
+    workouts = [
+        {"workoutName": "Easy Run"},
+        {"workoutName": "Tempo Run"},
+        {"workoutName": "Long Run"},
+    ]
+    result = await app_with_workouts.call_tool("upload_workouts", {"workouts": workouts})
+
+    assert result is not None
+    result_data = json_module.loads(result[0][0].text)
+    assert result_data["total"] == 3
+    assert result_data["succeeded"] == 3
+    assert result_data["failed"] == 0
+    assert mock_garmin_client.upload_workout.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_upload_workouts_partial_failure(app_with_workouts, mock_garmin_client):
+    """Test upload_workouts when some uploads fail"""
+    import json as json_module
+
+    mock_garmin_client.upload_workout.side_effect = [
+        {"workoutId": 111, "workoutName": "Easy Run"},
+        Exception("API error"),
+    ]
+
+    workouts = [
+        {"workoutName": "Easy Run"},
+        {"workoutName": "Bad Workout"},
+    ]
+    result = await app_with_workouts.call_tool("upload_workouts", {"workouts": workouts})
+
+    assert result is not None
+    result_data = json_module.loads(result[0][0].text)
+    assert result_data["total"] == 2
+    assert result_data["succeeded"] == 1
+    assert result_data["failed"] == 1
+    assert result_data["results"][0]["status"] == "success"
+    assert result_data["results"][1]["status"] == "error"
+    assert "API error" in result_data["results"][1]["message"]
+    assert result_data["results"][1]["name"] == "Bad Workout"
+
+
 # schedule_workouts tests
 @pytest.mark.asyncio
 async def test_schedule_workouts_single(app_with_workouts, mock_garmin_client):
