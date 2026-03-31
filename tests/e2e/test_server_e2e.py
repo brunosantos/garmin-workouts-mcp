@@ -179,3 +179,72 @@ async def test_multiple_tools():
                             # Some tools may not have data available
     except asyncio.TimeoutError:
         pytest.fail("Multiple tools test timed out - check your Garmin credentials and network")
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+@pytest.mark.timeout(60)
+async def test_schedule_workouts_tool():
+    """Test schedule_workout MCP tool with multiple workouts
+
+    WARNING: This test requires:
+    - Valid GARMIN_EMAIL and GARMIN_PASSWORD in .env file
+    - Active internet connection
+    - Real workout IDs from your Garmin library (set GARMIN_TEST_WORKOUT_IDS env var)
+
+    Set GARMIN_TEST_WORKOUT_IDS as a comma-separated list of workout IDs,
+    and GARMIN_TEST_SCHEDULE_DATES as a comma-separated list of YYYY-MM-DD dates
+    (must match the number of IDs).
+
+    If env vars are not set, the test verifies the tool is accessible and
+    returns a structured response for a dummy schedule (expected to fail gracefully).
+    """
+    import os
+    import json
+
+    server_params = StdioServerParameters(
+        command="python",
+        args=["-m", "garmin_workouts_mcp"],
+        env=None,
+    )
+
+    workout_ids_env = os.environ.get("GARMIN_TEST_WORKOUT_IDS", "")
+    dates_env = os.environ.get("GARMIN_TEST_SCHEDULE_DATES", "")
+
+    if workout_ids_env and dates_env:
+        ids = [int(wid.strip()) for wid in workout_ids_env.split(",")]
+        dates = [d.strip() for d in dates_env.split(",")]
+        assert len(ids) == len(dates), "GARMIN_TEST_WORKOUT_IDS and GARMIN_TEST_SCHEDULE_DATES must have the same number of entries"
+        schedules = [{"workout_id": wid, "calendar_date": date} for wid, date in zip(ids, dates)]
+    else:
+        # Use a dummy schedule — expected to fail at the API level but the tool should handle it gracefully
+        schedules = [
+            {"workout_id": 0, "calendar_date": "2099-01-01"},
+        ]
+
+    try:
+        async with asyncio.timeout(50):
+            async with stdio_client(server_params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+
+                    result = await session.call_tool(
+                        "schedule_workouts",
+                        arguments={"schedules": schedules}
+                    )
+
+                    assert result is not None
+                    assert len(result.content) > 0
+
+                    result_data = json.loads(result.content[0].text)
+                    assert "total" in result_data
+                    assert "succeeded" in result_data
+                    assert "failed" in result_data
+                    assert "results" in result_data
+                    assert result_data["total"] == len(schedules)
+                    assert len(result_data["results"]) == len(schedules)
+
+                    print(f"\nschedule_workout result:")
+                    print(json.dumps(result_data, indent=2))
+    except asyncio.TimeoutError:
+        pytest.fail("schedule_workout test timed out - check your Garmin credentials and network")
