@@ -56,12 +56,15 @@ This MCP server implements tools for the following domains:
   - 🏷️ `get_activity_types` — list all activity types supported by Garmin Connect
   - 🔢 `count_activities` — get the total number of activities in the account
 
-- ✅ **Workouts** — 8 read/write tools 💪
+- ✅ **Workouts** — 11 read/write tools 💪
   - 📋 `get_workouts` — list all workouts in the Garmin Connect workout library
   - 🔍 `get_workout_by_id` — get full details for a workout by numeric ID or UUID
   - ⬆️ `upload_workout` — create a new workout from structured JSON data
+  - ⬆️ `upload_workouts` — create multiple workouts from structured JSON data in a single call
   - 🗑️ `delete_workout` — permanently delete a workout from the library
+  - 🗑️ `delete_workouts` — permanently delete multiple workouts from the library in a single call
   - 📅 `schedule_workout` — schedule a workout to a specific calendar date
+  - 📅 `schedule_workouts` — schedule multiple workouts (or upload-and-schedule inline) in a single call
   - 📅 `get_scheduled_workouts` — list workouts scheduled on the calendar between two dates
   - 🗓️ `get_training_plan_workouts` — get Garmin Coach / training plan workouts for a given week
   - ⬇️ `download_workout` — download a workout in FIT file format
@@ -264,5 +267,5 @@ uv run pytest tests/e2e/ -m e2e -v
 
 ### Test Structure
 
-- **Integration tests** (18 tests): Test all MCP tools using FastMCP integration with mocked Garmin API responses
-- **End-to-end tests** (4 tests): Test with real MCP server and Garmin API (requires valid credentials)
+- **Integration tests** (49 tests): Test all MCP tools using FastMCP integration with mocked Garmin API responses
+- **End-to-end tests** (9 tests): Test with real MCP server and Garmin API (requires valid credentials)
