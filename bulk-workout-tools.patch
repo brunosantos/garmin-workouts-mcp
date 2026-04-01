@@ -1,0 +1,1013 @@
+From ba83060144bbfc52180c5b423d8ba5049ec91adf Mon Sep 17 00:00:00 2001
+From: "copilot-swe-agent[bot]" <198982749+Copilot@users.noreply.github.com>
+Date: Wed, 1 Apr 2026 00:00:55 +0000
+Subject: [PATCH] feat: add bulk workout tools (upload_workouts,
+ delete_workouts, schedule_workouts)
+
+Adds three new MCP tools for bulk workout operations:
+
+- upload_workouts: Upload multiple workouts in a single call. Returns a
+  summary with total/succeeded/failed counts and per-workout results.
+
+- delete_workouts: Delete multiple workouts by ID in a single call.
+  Returns per-workout success/failure status including HTTP status codes.
+
+- schedule_workouts: Schedule multiple workouts to calendar dates in one
+  call. Supports both existing workout IDs and inline upload-and-schedule
+  (provide workout_data instead of workout_id to upload and schedule in
+  one step).
+
+Also adds:
+- 16 integration tests covering single/multiple items, partial failures,
+  exception handling, missing field validation, and the inline
+  upload-then-schedule flow
+- 5 e2e tests for all three new tools
+
+Co-authored-by: brunosantos <495067+brunosantos@users.noreply.github.com>
+---
+ src/garmin_mcp/workouts.py               | 195 +++++++++++
+ tests/e2e/test_server_e2e.py             | 326 ++++++++++++++++++
+ tests/integration/test_workouts_tools.py | 411 ++++++++++++++++++++++-
+ 3 files changed, 931 insertions(+), 1 deletion(-)
+
+diff --git a/src/garmin_mcp/workouts.py b/src/garmin_mcp/workouts.py
+index ce221b5..5548849 100644
+--- a/src/garmin_mcp/workouts.py
++++ b/src/garmin_mcp/workouts.py
+@@ -392,6 +392,54 @@ def register_tools(app):
+         except Exception as e:
+             return f"Error uploading workout: {str(e)}"
+ 
++    @app.tool()
++    async def upload_workouts(workouts: list[dict]) -> str:
++        """Upload multiple workouts from JSON data in a single call
++
++        Creates multiple new workouts in Garmin Connect. Each item in the list
++        uses the same structure as upload_workout.
++
++        IMPORTANT: Step types must use Garmin's DTO format:
++        - Use "ExecutableStepDTO" for regular steps (warmup, interval, cooldown, recovery)
++        - Use "RepeatGroupDTO" for repeat/interval groups with numberOfIterations
++
++        IMPORTANT: For heart rate zone targets, use "zoneNumber" (1-5), NOT targetValueOne/targetValueTwo.
++
++        Args:
++            workouts: List of workout dictionaries, each containing workout structure
++                      (name, sport type, segments, etc.) — same format as upload_workout.
++        """
++        results = []
++        for workout_data in workouts:
++            try:
++                _fix_hr_zone_steps(workout_data)
++                result = garmin_client.upload_workout(workout_data)
++                if isinstance(result, dict):
++                    entry = {
++                        "status": "success",
++                        "workout_id": result.get('workoutId'),
++                        "name": result.get('workoutName'),
++                        "message": "Workout uploaded successfully"
++                    }
++                    results.append({k: v for k, v in entry.items() if v is not None})
++                else:
++                    results.append({"status": "success", "message": "Workout uploaded successfully"})
++            except Exception as e:
++                results.append({
++                    "status": "error",
++                    "name": workout_data.get('workoutName'),
++                    "message": f"Error uploading workout: {str(e)}"
++                })
++
++        total = len(results)
++        succeeded = sum(1 for r in results if r["status"] == "success")
++        return json.dumps({
++            "total": total,
++            "succeeded": succeeded,
++            "failed": total - succeeded,
++            "results": results
++        }, indent=2)
++
+     @app.tool()
+     async def delete_workout(workout_id: int) -> str:
+         """Delete a workout from Garmin Connect
+@@ -421,6 +469,50 @@ def register_tools(app):
+         except Exception as e:
+             return f"Error deleting workout: {str(e)}"
+ 
++    @app.tool()
++    async def delete_workouts(workout_ids: list[int]) -> str:
++        """Delete multiple workouts from Garmin Connect in a single call
++
++        Permanently removes multiple workouts from your Garmin Connect workout library.
++
++        Args:
++            workout_ids: List of workout IDs to delete (get IDs from get_workouts)
++        """
++        results = []
++        for workout_id in workout_ids:
++            try:
++                url = f"{garmin_client.garmin_workouts}/workout/{workout_id}"
++                response = garmin_client.garth.delete("connectapi", url, api=True)
++
++                if response.status_code in (200, 204):
++                    results.append({
++                        "status": "success",
++                        "workout_id": workout_id,
++                        "message": f"Workout {workout_id} deleted successfully"
++                    })
++                else:
++                    results.append({
++                        "status": "failed",
++                        "workout_id": workout_id,
++                        "http_status": response.status_code,
++                        "message": f"Failed to delete workout: HTTP {response.status_code}"
++                    })
++            except Exception as e:
++                results.append({
++                    "status": "error",
++                    "workout_id": workout_id,
++                    "message": f"Error deleting workout: {str(e)}"
++                })
++
++        total = len(results)
++        succeeded = sum(1 for r in results if r["status"] == "success")
++        return json.dumps({
++            "total": total,
++            "succeeded": succeeded,
++            "failed": total - succeeded,
++            "results": results
++        }, indent=2)
++
+     @app.tool()
+     async def get_scheduled_workouts(start_date: str, end_date: str) -> str:
+         """Get scheduled workouts between two dates with curated summary list
+@@ -551,4 +643,107 @@ def register_tools(app):
+         except Exception as e:
+             return f"Error scheduling workout: {str(e)}"
+ 
++    @app.tool()
++    async def schedule_workouts(schedules: list[dict]) -> str:
++        """Schedule multiple workouts to specific calendar dates
++
++        This adds workouts to your Garmin Connect calendar in a single call.
++        Each item can either reference an existing workout by ID, or provide
++        inline workout_data to upload-and-schedule in one step.
++
++        Args:
++            schedules: List of workout schedules, each with:
++                - calendar_date (str): Date to schedule the workout in YYYY-MM-DD format (required)
++                - workout_id (int): ID of an existing workout to schedule (required unless workout_data is provided)
++                - workout_data (dict): Inline workout JSON to upload first, then schedule (optional).
++                  When provided, workout_id is not required. Uses the same structure as upload_workout.
++
++        Examples:
++            Schedule existing workouts by ID:
++            [{"workout_id": 123456, "calendar_date": "2024-01-15"},
++             {"workout_id": 789012, "calendar_date": "2024-01-17"}]
++
++            Upload and schedule inline:
++            [{"calendar_date": "2024-01-15", "workout_data": {"workoutName": "Easy Run", ...}},
++             {"workout_id": 789012, "calendar_date": "2024-01-17"}]
++        """
++        results = []
++        for item in schedules:
++            workout_id = item.get("workout_id")
++            calendar_date = item.get("calendar_date")
++            workout_data = item.get("workout_data")
++
++            if calendar_date is None:
++                results.append({
++                    "status": "failed",
++                    "workout_id": workout_id,
++                    "scheduled_date": calendar_date,
++                    "message": "Missing required field: calendar_date"
++                })
++                continue
++
++            if workout_id is None and workout_data is None:
++                results.append({
++                    "status": "failed",
++                    "workout_id": None,
++                    "scheduled_date": calendar_date,
++                    "message": "Missing required fields: provide either workout_id or workout_data"
++                })
++                continue
++
++            try:
++                workout_name = None
++
++                if workout_data is not None:
++                    # Upload the workout first, then use the returned ID to schedule
++                    _fix_hr_zone_steps(workout_data)
++                    upload_result = garmin_client.upload_workout(workout_data)
++                    if not isinstance(upload_result, dict) or upload_result.get('workoutId') is None:
++                        results.append({
++                            "status": "failed",
++                            "scheduled_date": calendar_date,
++                            "message": "Upload succeeded but no workout_id returned"
++                        })
++                        continue
++                    workout_id = upload_result['workoutId']
++                    workout_name = upload_result.get('workoutName')
++
++                url = f"workout-service/schedule/{workout_id}"
++                response = garmin_client.garth.post("connectapi", url, json={"date": calendar_date})
++
++                if response.status_code == 200:
++                    entry = {
++                        "status": "success",
++                        "workout_id": workout_id,
++                        "scheduled_date": calendar_date,
++                        "message": f"Successfully scheduled workout {workout_id} for {calendar_date}"
++                    }
++                    if workout_name:
++                        entry["workout_name"] = workout_name
++                    results.append(entry)
++                else:
++                    results.append({
++                        "status": "failed",
++                        "workout_id": workout_id,
++                        "scheduled_date": calendar_date,
++                        "http_status": response.status_code,
++                        "message": f"Failed to schedule workout: HTTP {response.status_code}"
++                    })
++            except Exception as e:
++                results.append({
++                    "status": "error",
++                    "workout_id": workout_id,
++                    "scheduled_date": calendar_date,
++                    "message": f"Error scheduling workout: {str(e)}"
++                })
++
++        total = len(results)
++        succeeded = sum(1 for r in results if r["status"] == "success")
++        return json.dumps({
++            "total": total,
++            "succeeded": succeeded,
++            "failed": total - succeeded,
++            "results": results
++        }, indent=2)
++
+     return app
+diff --git a/tests/e2e/test_server_e2e.py b/tests/e2e/test_server_e2e.py
+index 4d28534..f8ba286 100644
+--- a/tests/e2e/test_server_e2e.py
++++ b/tests/e2e/test_server_e2e.py
+@@ -179,3 +179,329 @@ async def test_multiple_tools():
+                             # Some tools may not have data available
+     except asyncio.TimeoutError:
+         pytest.fail("Multiple tools test timed out - check your Garmin credentials and network")
++
++
++@pytest.mark.e2e
++@pytest.mark.asyncio
++@pytest.mark.timeout(60)
++async def test_schedule_workouts_tool():
++    """Test schedule_workout MCP tool with multiple workouts
++
++    WARNING: This test requires:
++    - Valid GARMIN_EMAIL and GARMIN_PASSWORD in .env file
++    - Active internet connection
++    - Real workout IDs from your Garmin library (set GARMIN_TEST_WORKOUT_IDS env var)
++
++    Set GARMIN_TEST_WORKOUT_IDS as a comma-separated list of workout IDs,
++    and GARMIN_TEST_SCHEDULE_DATES as a comma-separated list of YYYY-MM-DD dates
++    (must match the number of IDs).
++
++    If env vars are not set, the test verifies the tool is accessible and
++    returns a structured response for a dummy schedule (expected to fail gracefully).
++    """
++    import os
++    import json
++
++    server_params = StdioServerParameters(
++        command="python",
++        args=["-m", "garmin_mcp"],
++        env=None,
++    )
++
++    workout_ids_env = os.environ.get("GARMIN_TEST_WORKOUT_IDS", "")
++    dates_env = os.environ.get("GARMIN_TEST_SCHEDULE_DATES", "")
++
++    if workout_ids_env and dates_env:
++        ids = [int(wid.strip()) for wid in workout_ids_env.split(",")]
++        dates = [d.strip() for d in dates_env.split(",")]
++        assert len(ids) == len(dates), "GARMIN_TEST_WORKOUT_IDS and GARMIN_TEST_SCHEDULE_DATES must have the same number of entries"
++        schedules = [{"workout_id": wid, "calendar_date": date} for wid, date in zip(ids, dates)]
++    else:
++        # Use a dummy schedule — expected to fail at the API level but the tool should handle it gracefully
++        schedules = [
++            {"workout_id": 0, "calendar_date": "2099-01-01"},
++        ]
++
++    try:
++        async with asyncio.timeout(50):
++            async with stdio_client(server_params) as (read, write):
++                async with ClientSession(read, write) as session:
++                    await session.initialize()
++
++                    result = await session.call_tool(
++                        "schedule_workouts",
++                        arguments={"schedules": schedules}
++                    )
++
++                    assert result is not None
++                    assert len(result.content) > 0
++
++                    result_data = json.loads(result.content[0].text)
++                    assert "total" in result_data
++                    assert "succeeded" in result_data
++                    assert "failed" in result_data
++                    assert "results" in result_data
++                    assert result_data["total"] == len(schedules)
++                    assert len(result_data["results"]) == len(schedules)
++
++                    print(f"\nschedule_workout result:")
++                    print(json.dumps(result_data, indent=2))
++    except asyncio.TimeoutError:
++        pytest.fail("schedule_workout test timed out - check your Garmin credentials and network")
++
++
++@pytest.mark.e2e
++@pytest.mark.asyncio
++@pytest.mark.timeout(60)
++async def test_upload_workouts_tool():
++    """Test upload_workouts MCP tool — creates multiple workouts in one call
++
++    WARNING: This test requires:
++    - Valid GARMIN_EMAIL and GARMIN_PASSWORD in .env file
++    - Active internet connection
++
++    This test uploads real workouts to Garmin Connect. The created workouts are
++    deleted at the end of the test to keep the library clean.
++    """
++    import json
++
++    server_params = StdioServerParameters(
++        command="python",
++        args=["-m", "garmin_mcp"],
++        env=None,
++    )
++
++    minimal_workout = {
++        "workoutName": "e2e Test Workout - DELETE ME",
++        "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
++        "workoutSegments": [{
++            "segmentOrder": 1,
++            "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
++            "workoutSteps": [{
++                "type": "ExecutableStepDTO",
++                "stepOrder": 1,
++                "stepType": {"stepTypeId": 3, "stepTypeKey": "interval"},
++                "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
++                "endConditionValue": 600.0,
++                "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"},
++            }]
++        }]
++    }
++
++    try:
++        async with asyncio.timeout(50):
++            async with stdio_client(server_params) as (read, write):
++                async with ClientSession(read, write) as session:
++                    await session.initialize()
++
++                    result = await session.call_tool(
++                        "upload_workouts",
++                        arguments={"workouts": [minimal_workout, minimal_workout]}
++                    )
++
++                    assert result is not None
++                    assert len(result.content) > 0
++
++                    result_data = json.loads(result.content[0].text)
++                    assert "total" in result_data
++                    assert "succeeded" in result_data
++                    assert "failed" in result_data
++                    assert "results" in result_data
++                    assert result_data["total"] == 2
++                    assert len(result_data["results"]) == 2
++
++                    print(f"\nupload_workouts result:")
++                    print(json.dumps(result_data, indent=2))
++
++                    # Clean up: delete any workouts that were successfully created
++                    created_ids = [
++                        r["workout_id"] for r in result_data["results"]
++                        if r.get("status") == "success" and r.get("workout_id")
++                    ]
++                    if created_ids:
++                        await session.call_tool(
++                            "delete_workouts",
++                            arguments={"workout_ids": created_ids}
++                        )
++                        print(f"\nCleaned up workout IDs: {created_ids}")
++    except asyncio.TimeoutError:
++        pytest.fail("upload_workouts test timed out - check your Garmin credentials and network")
++
++
++@pytest.mark.e2e
++@pytest.mark.asyncio
++@pytest.mark.timeout(60)
++async def test_delete_workouts_tool():
++    """Test delete_workouts MCP tool — deletes multiple workouts in one call
++
++    WARNING: This test requires:
++    - Valid GARMIN_EMAIL and GARMIN_PASSWORD in .env file
++    - Active internet connection
++
++    Uses dummy IDs that are unlikely to exist. The tool should handle
++    API failures gracefully and return a structured response.
++    """
++    import json
++
++    server_params = StdioServerParameters(
++        command="python",
++        args=["-m", "garmin_mcp"],
++        env=None,
++    )
++
++    try:
++        async with asyncio.timeout(50):
++            async with stdio_client(server_params) as (read, write):
++                async with ClientSession(read, write) as session:
++                    await session.initialize()
++
++                    # Use dummy IDs — expected to fail at the API level but handled gracefully
++                    result = await session.call_tool(
++                        "delete_workouts",
++                        arguments={"workout_ids": [0, 1]}
++                    )
++
++                    assert result is not None
++                    assert len(result.content) > 0
++
++                    result_data = json.loads(result.content[0].text)
++                    assert "total" in result_data
++                    assert "succeeded" in result_data
++                    assert "failed" in result_data
++                    assert "results" in result_data
++                    assert result_data["total"] == 2
++                    assert len(result_data["results"]) == 2
++
++                    print(f"\ndelete_workouts result:")
++                    print(json.dumps(result_data, indent=2))
++    except asyncio.TimeoutError:
++        pytest.fail("delete_workouts test timed out - check your Garmin credentials and network")
++
++
++@pytest.mark.e2e
++@pytest.mark.asyncio
++@pytest.mark.timeout(60)
++async def test_schedule_workouts_inline_upload():
++    """Test schedule_workouts with inline workout_data — uploads and schedules in one call
++
++    WARNING: This test requires:
++    - Valid GARMIN_EMAIL and GARMIN_PASSWORD in .env file
++    - Active internet connection
++
++    Uploads a minimal workout and schedules it for a far-future date.
++    The created workout is deleted at the end of the test.
++    """
++    import json
++
++    server_params = StdioServerParameters(
++        command="python",
++        args=["-m", "garmin_mcp"],
++        env=None,
++    )
++
++    inline_workout = {
++        "workoutName": "e2e Inline Test - DELETE ME",
++        "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
++        "workoutSegments": [{
++            "segmentOrder": 1,
++            "sportType": {"sportTypeId": 1, "sportTypeKey": "running"},
++            "workoutSteps": [{
++                "type": "ExecutableStepDTO",
++                "stepOrder": 1,
++                "stepType": {"stepTypeId": 3, "stepTypeKey": "interval"},
++                "endCondition": {"conditionTypeId": 2, "conditionTypeKey": "time"},
++                "endConditionValue": 600.0,
++                "targetType": {"workoutTargetTypeId": 1, "workoutTargetTypeKey": "no.target"},
++            }]
++        }]
++    }
++
++    try:
++        async with asyncio.timeout(50):
++            async with stdio_client(server_params) as (read, write):
++                async with ClientSession(read, write) as session:
++                    await session.initialize()
++
++                    schedules = [{"workout_data": inline_workout, "calendar_date": "2099-01-01"}]
++                    result = await session.call_tool(
++                        "schedule_workouts",
++                        arguments={"schedules": schedules}
++                    )
++
++                    assert result is not None
++                    assert len(result.content) > 0
++
++                    result_data = json.loads(result.content[0].text)
++                    assert "total" in result_data
++                    assert "succeeded" in result_data
++                    assert "failed" in result_data
++                    assert "results" in result_data
++                    assert result_data["total"] == 1
++
++                    print(f"\nschedule_workouts inline upload result:")
++                    print(json.dumps(result_data, indent=2))
++
++                    # Clean up: delete any workout that was created
++                    created_ids = [
++                        r["workout_id"] for r in result_data["results"]
++                        if r.get("workout_id")
++                    ]
++                    if created_ids:
++                        await session.call_tool(
++                            "delete_workouts",
++                            arguments={"workout_ids": created_ids}
++                        )
++                        print(f"\nCleaned up workout IDs: {created_ids}")
++    except asyncio.TimeoutError:
++        pytest.fail("schedule_workouts inline upload test timed out - check your Garmin credentials and network")
++
++
++@pytest.mark.e2e
++@pytest.mark.asyncio
++@pytest.mark.timeout(60)
++async def test_schedule_workouts_missing_required_fields():
++    """Test schedule_workouts returns a structured failure when required fields are missing
++
++    WARNING: This test requires:
++    - Valid GARMIN_EMAIL and GARMIN_PASSWORD in .env file
++    - Active internet connection
++
++    Verifies that omitting both workout_id and workout_data yields a well-formed
++    failure entry rather than an unhandled error.
++    """
++    import json
++
++    server_params = StdioServerParameters(
++        command="python",
++        args=["-m", "garmin_mcp"],
++        env=None,
++    )
++
++    try:
++        async with asyncio.timeout(50):
++            async with stdio_client(server_params) as (read, write):
++                async with ClientSession(read, write) as session:
++                    await session.initialize()
++
++                    # Neither workout_id nor workout_data — should fail gracefully
++                    result = await session.call_tool(
++                        "schedule_workouts",
++                        arguments={"schedules": [{"calendar_date": "2099-01-01"}]}
++                    )
++
++                    assert result is not None
++                    assert len(result.content) > 0
++
++                    result_data = json.loads(result.content[0].text)
++                    assert "total" in result_data
++                    assert "succeeded" in result_data
++                    assert "failed" in result_data
++                    assert "results" in result_data
++                    assert result_data["total"] == 1
++                    assert result_data["failed"] == 1
++                    assert result_data["results"][0]["status"] == "failed"
++
++                    print(f"\nschedule_workouts missing fields result:")
++                    print(json.dumps(result_data, indent=2))
++    except asyncio.TimeoutError:
++        pytest.fail("schedule_workouts missing fields test timed out - check your Garmin credentials and network")
+diff --git a/tests/integration/test_workouts_tools.py b/tests/integration/test_workouts_tools.py
+index 5084f50..55aa53d 100644
+--- a/tests/integration/test_workouts_tools.py
++++ b/tests/integration/test_workouts_tools.py
+@@ -7,7 +7,7 @@ import pytest
+ from unittest.mock import Mock
+ from mcp.server.fastmcp import FastMCP
+ 
+-from garmin_mcp import workouts
++from garmin_workouts_mcp import workouts
+ from tests.fixtures.garmin_responses import (
+     MOCK_WORKOUTS,
+     MOCK_WORKOUT_DETAILS,
+@@ -541,3 +541,412 @@ async def test_upload_workout_exception(app_with_workouts, mock_garmin_client):
+ 
+     # Verify error is handled gracefully
+     assert result is not None
++
++
++# delete_workouts tests
++@pytest.mark.asyncio
++async def test_delete_workouts_single(app_with_workouts, mock_garmin_client):
++    """Test delete_workouts with a single workout ID"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    mock_response = MagicMock()
++    mock_response.status_code = 204
++    mock_garmin_client.garth.delete.return_value = mock_response
++
++    result = await app_with_workouts.call_tool(
++        "delete_workouts",
++        {"workout_ids": [123456]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 1
++    assert result_data["failed"] == 0
++    assert result_data["results"][0]["status"] == "success"
++    assert result_data["results"][0]["workout_id"] == 123456
++
++
++@pytest.mark.asyncio
++async def test_delete_workouts_multiple(app_with_workouts, mock_garmin_client):
++    """Test delete_workouts with multiple workout IDs"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    mock_response = MagicMock()
++    mock_response.status_code = 204
++    mock_garmin_client.garth.delete.return_value = mock_response
++
++    result = await app_with_workouts.call_tool(
++        "delete_workouts",
++        {"workout_ids": [111, 222, 333]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 3
++    assert result_data["succeeded"] == 3
++    assert result_data["failed"] == 0
++    assert mock_garmin_client.garth.delete.call_count == 3
++
++
++@pytest.mark.asyncio
++async def test_delete_workouts_partial_failure(app_with_workouts, mock_garmin_client):
++    """Test delete_workouts when some deletions fail"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    ok_response = MagicMock()
++    ok_response.status_code = 204
++    err_response = MagicMock()
++    err_response.status_code = 404
++
++    mock_garmin_client.garth.delete.side_effect = [ok_response, err_response]
++
++    result = await app_with_workouts.call_tool(
++        "delete_workouts",
++        {"workout_ids": [111, 999]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 2
++    assert result_data["succeeded"] == 1
++    assert result_data["failed"] == 1
++    assert result_data["results"][0]["status"] == "success"
++    assert result_data["results"][1]["status"] == "failed"
++    assert result_data["results"][1]["http_status"] == 404
++
++
++@pytest.mark.asyncio
++async def test_delete_workouts_exception(app_with_workouts, mock_garmin_client):
++    """Test delete_workouts when an exception is raised"""
++    import json as json_module
++
++    mock_garmin_client.garth.delete.side_effect = Exception("Network error")
++
++    result = await app_with_workouts.call_tool(
++        "delete_workouts",
++        {"workout_ids": [123456]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 0
++    assert result_data["failed"] == 1
++    assert result_data["results"][0]["status"] == "error"
++    assert "Network error" in result_data["results"][0]["message"]
++
++
++# upload_workouts tests
++@pytest.mark.asyncio
++async def test_upload_workouts_single(app_with_workouts, mock_garmin_client):
++    """Test upload_workouts with a single workout"""
++    import json as json_module
++
++    mock_garmin_client.upload_workout.return_value = {"workoutId": 111, "workoutName": "Easy Run"}
++
++    result = await app_with_workouts.call_tool(
++        "upload_workouts",
++        {"workouts": [{"workoutName": "Easy Run", "sportType": {"sportTypeId": 1, "sportTypeKey": "running"}}]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 1
++    assert result_data["failed"] == 0
++    assert result_data["results"][0]["status"] == "success"
++    assert result_data["results"][0]["workout_id"] == 111
++    assert result_data["results"][0]["name"] == "Easy Run"
++    mock_garmin_client.upload_workout.assert_called_once()
++
++
++@pytest.mark.asyncio
++async def test_upload_workouts_multiple(app_with_workouts, mock_garmin_client):
++    """Test upload_workouts with multiple workouts"""
++    import json as json_module
++
++    mock_garmin_client.upload_workout.side_effect = [
++        {"workoutId": 111, "workoutName": "Easy Run"},
++        {"workoutId": 222, "workoutName": "Tempo Run"},
++        {"workoutId": 333, "workoutName": "Long Run"},
++    ]
++
++    workouts = [
++        {"workoutName": "Easy Run"},
++        {"workoutName": "Tempo Run"},
++        {"workoutName": "Long Run"},
++    ]
++    result = await app_with_workouts.call_tool("upload_workouts", {"workouts": workouts})
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 3
++    assert result_data["succeeded"] == 3
++    assert result_data["failed"] == 0
++    assert mock_garmin_client.upload_workout.call_count == 3
++
++
++@pytest.mark.asyncio
++async def test_upload_workouts_partial_failure(app_with_workouts, mock_garmin_client):
++    """Test upload_workouts when some uploads fail"""
++    import json as json_module
++
++    mock_garmin_client.upload_workout.side_effect = [
++        {"workoutId": 111, "workoutName": "Easy Run"},
++        Exception("API error"),
++    ]
++
++    workouts = [
++        {"workoutName": "Easy Run"},
++        {"workoutName": "Bad Workout"},
++    ]
++    result = await app_with_workouts.call_tool("upload_workouts", {"workouts": workouts})
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 2
++    assert result_data["succeeded"] == 1
++    assert result_data["failed"] == 1
++    assert result_data["results"][0]["status"] == "success"
++    assert result_data["results"][1]["status"] == "error"
++    assert "API error" in result_data["results"][1]["message"]
++    assert result_data["results"][1]["name"] == "Bad Workout"
++
++
++# schedule_workouts tests
++@pytest.mark.asyncio
++async def test_schedule_workouts_single(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts with a single workout"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    mock_response = MagicMock()
++    mock_response.status_code = 200
++    mock_garmin_client.garth.post.return_value = mock_response
++
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": [{"workout_id": 123456, "calendar_date": "2024-01-15"}]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 1
++    assert result_data["failed"] == 0
++    assert result_data["results"][0]["status"] == "success"
++    assert result_data["results"][0]["workout_id"] == 123456
++    assert result_data["results"][0]["scheduled_date"] == "2024-01-15"
++    mock_garmin_client.garth.post.assert_called_once_with(
++        "connectapi", "workout-service/schedule/123456", json={"date": "2024-01-15"}
++    )
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_multiple(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts with multiple workouts"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    mock_response = MagicMock()
++    mock_response.status_code = 200
++    mock_garmin_client.garth.post.return_value = mock_response
++
++    schedules = [
++        {"workout_id": 111, "calendar_date": "2024-01-15"},
++        {"workout_id": 222, "calendar_date": "2024-01-17"},
++        {"workout_id": 333, "calendar_date": "2024-01-19"},
++    ]
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": schedules}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 3
++    assert result_data["succeeded"] == 3
++    assert result_data["failed"] == 0
++    assert mock_garmin_client.garth.post.call_count == 3
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_partial_failure(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts when some workouts fail"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    ok_response = MagicMock()
++    ok_response.status_code = 200
++    err_response = MagicMock()
++    err_response.status_code = 404
++
++    mock_garmin_client.garth.post.side_effect = [ok_response, err_response]
++
++    schedules = [
++        {"workout_id": 111, "calendar_date": "2024-01-15"},
++        {"workout_id": 999, "calendar_date": "2024-01-17"},
++    ]
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": schedules}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 2
++    assert result_data["succeeded"] == 1
++    assert result_data["failed"] == 1
++    assert result_data["results"][0]["status"] == "success"
++    assert result_data["results"][1]["status"] == "failed"
++    assert result_data["results"][1]["http_status"] == 404
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_missing_fields(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts with missing required fields"""
++    import json as json_module
++
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": [{"workout_id": 123456}]}  # missing calendar_date
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 0
++    assert result_data["failed"] == 1
++    assert result_data["results"][0]["status"] == "failed"
++    assert "Missing required field" in result_data["results"][0]["message"]
++    mock_garmin_client.garth.post.assert_not_called()
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_exception(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts when an exception is raised"""
++    import json as json_module
++
++    mock_garmin_client.garth.post.side_effect = Exception("Network error")
++
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": [{"workout_id": 123456, "calendar_date": "2024-01-15"}]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 0
++    assert result_data["failed"] == 1
++    assert result_data["results"][0]["status"] == "error"
++    assert "Network error" in result_data["results"][0]["message"]
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_inline_upload(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts with inline workout_data uploads-and-schedules in one call"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    upload_result = {"workoutId": 999001, "workoutName": "Easy Run"}
++    mock_garmin_client.upload_workout.return_value = upload_result
++
++    schedule_response = MagicMock()
++    schedule_response.status_code = 200
++    mock_garmin_client.garth.post.return_value = schedule_response
++
++    inline_data = {"workoutName": "Easy Run", "sportType": {"sportTypeId": 1, "sportTypeKey": "running"}}
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": [{"workout_data": inline_data, "calendar_date": "2024-02-01"}]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 1
++    assert result_data["failed"] == 0
++    entry = result_data["results"][0]
++    assert entry["status"] == "success"
++    assert entry["workout_id"] == 999001
++    assert entry["scheduled_date"] == "2024-02-01"
++    assert entry["workout_name"] == "Easy Run"
++    mock_garmin_client.upload_workout.assert_called_once_with(inline_data)
++    mock_garmin_client.garth.post.assert_called_once_with(
++        "connectapi", "workout-service/schedule/999001", json={"date": "2024-02-01"}
++    )
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_mixed_inline_and_id(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts mixing inline workout_data and existing workout_id"""
++    import json as json_module
++    from unittest.mock import MagicMock
++
++    upload_result = {"workoutId": 999002, "workoutName": "Tempo Run"}
++    mock_garmin_client.upload_workout.return_value = upload_result
++
++    schedule_response = MagicMock()
++    schedule_response.status_code = 200
++    mock_garmin_client.garth.post.return_value = schedule_response
++
++    inline_data = {"workoutName": "Tempo Run", "sportType": {"sportTypeId": 1, "sportTypeKey": "running"}}
++    schedules = [
++        {"workout_id": 111, "calendar_date": "2024-02-05"},
++        {"workout_data": inline_data, "calendar_date": "2024-02-07"},
++    ]
++    result = await app_with_workouts.call_tool("schedule_workouts", {"schedules": schedules})
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 2
++    assert result_data["succeeded"] == 2
++    assert result_data["failed"] == 0
++    assert result_data["results"][0]["workout_id"] == 111
++    assert result_data["results"][1]["workout_id"] == 999002
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_missing_both_id_and_data(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts fails when neither workout_id nor workout_data is provided"""
++    import json as json_module
++
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": [{"calendar_date": "2024-02-01"}]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 0
++    assert result_data["failed"] == 1
++    assert "workout_id" in result_data["results"][0]["message"] or "workout_data" in result_data["results"][0]["message"]
++    mock_garmin_client.garth.post.assert_not_called()
++
++
++@pytest.mark.asyncio
++async def test_schedule_workouts_inline_upload_no_id_returned(app_with_workouts, mock_garmin_client):
++    """Test schedule_workouts fails gracefully when upload returns no workout_id"""
++    import json as json_module
++
++    mock_garmin_client.upload_workout.return_value = {"workoutName": "Bad Response"}
++
++    inline_data = {"workoutName": "Bad Response"}
++    result = await app_with_workouts.call_tool(
++        "schedule_workouts",
++        {"schedules": [{"workout_data": inline_data, "calendar_date": "2024-02-01"}]}
++    )
++
++    assert result is not None
++    result_data = json_module.loads(result[0][0].text)
++    assert result_data["total"] == 1
++    assert result_data["succeeded"] == 0
++    assert result_data["failed"] == 1
++    assert result_data["results"][0]["status"] == "failed"
++    mock_garmin_client.garth.post.assert_not_called()
+-- 
+2.53.0
+
