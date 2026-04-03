@@ -13,7 +13,7 @@ import requests
 from garth.exc import GarthHTTPError
 from garminconnect import Garmin, GarminConnectAuthenticationError
 
-from garmin_workouts_mcp.token_utils import (
+from garmin_mcp.token_utils import (
     get_token_path,
     get_token_base64_path,
     token_exists,
