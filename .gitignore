@@ -1,11 +1,6 @@
-# Secrets
+# Environment files
 .env
 .env.*
-*.pem
-*.key
-*.p12
-credentials.json
-service-account*.json
 
 # Python
 __pycache__/
