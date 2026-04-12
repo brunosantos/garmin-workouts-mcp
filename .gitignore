@@ -1,0 +1,30 @@
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+credentials.json
+service-account*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
