@@ -24,7 +24,7 @@ def main():
     # init_api uses tokens if present; pass None for email/password to prefer tokens
     garmin = init_api(None, None)
     if not garmin:
-        print("Failed to initialize Garmin client. Run 'garmin-mcp-auth' to create tokens first.")
+        print("Failed to initialize Garmin client. Run 'garmin-workouts-mcp-auth' to create tokens first.")
         sys.exit(2)
 
     try:

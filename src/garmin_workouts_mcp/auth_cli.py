@@ -245,7 +245,7 @@ def verify_tokens(token_path: str) -> bool:
 
     if not info["exists"]:
         print(f"✗ Tokens not found at: {info['expanded_path']}")
-        print("\nRun 'garmin-mcp-auth' without --verify to authenticate.")
+        print("\nRun 'garmin-workouts-mcp-auth' without --verify to authenticate.")
         return False
 
     if info["valid"]:
@@ -255,7 +255,7 @@ def verify_tokens(token_path: str) -> bool:
         return True
     else:
         print(f"✗ Tokens are invalid: {info['error']}")
-        print("\nRun 'garmin-mcp-auth --force-reauth' to re-authenticate.")
+        print("\nRun 'garmin-workouts-mcp-auth --force-reauth' to re-authenticate.")
         return False
 
 
@@ -267,19 +267,19 @@ def main():
         epilog="""
 Examples:
   # Authenticate and save tokens (interactive)
-  garmin-mcp-auth
+  garmin-workouts-mcp-auth
 
   # Use environment variables for credentials
-  GARMIN_EMAIL=you@example.com GARMIN_PASSWORD=secret garmin-mcp-auth
+  GARMIN_EMAIL=you@example.com GARMIN_PASSWORD=secret garmin-workouts-mcp-auth
 
   # Verify existing tokens
-  garmin-mcp-auth --verify
+  garmin-workouts-mcp-auth --verify
 
   # Force re-authentication
-  garmin-mcp-auth --force-reauth
+  garmin-workouts-mcp-auth --force-reauth
 
   # Use custom token location
-  garmin-mcp-auth --token-path ~/.garmin_tokens
+  garmin-workouts-mcp-auth --token-path ~/.garmin_tokens
         """
     )
 
