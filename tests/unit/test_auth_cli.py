@@ -257,7 +257,7 @@ class TestVerifyTokens:
 class TestMain:
     """Tests for main function."""
 
-    @patch("sys.argv", ["garmin-mcp-auth", "--verify"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth", "--verify"])
     @patch("garmin_workouts_mcp.auth_cli.verify_tokens")
     def test_main_verify_mode(self, mock_verify):
         """Test main function in verify mode."""
@@ -269,7 +269,7 @@ class TestMain:
         assert exc_info.value.code == 0
         mock_verify.assert_called_once()
 
-    @patch("sys.argv", ["garmin-mcp-auth"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth"])
     @patch("garmin_workouts_mcp.auth_cli.authenticate")
     def test_main_authenticate_mode_success(self, mock_authenticate):
         """Test main function in authenticate mode (success)."""
@@ -281,7 +281,7 @@ class TestMain:
         assert exc_info.value.code == 0
         mock_authenticate.assert_called_once()
 
-    @patch("sys.argv", ["garmin-mcp-auth"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth"])
     @patch("garmin_workouts_mcp.auth_cli.authenticate")
     def test_main_authenticate_mode_failure(self, mock_authenticate):
         """Test main function in authenticate mode (failure)."""
@@ -293,7 +293,7 @@ class TestMain:
         assert exc_info.value.code == 1
         mock_authenticate.assert_called_once()
 
-    @patch("sys.argv", ["garmin-mcp-auth", "--force-reauth"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth", "--force-reauth"])
     @patch("garmin_workouts_mcp.auth_cli.authenticate")
     def test_main_force_reauth(self, mock_authenticate):
         """Test main function with force-reauth flag."""
@@ -306,7 +306,7 @@ class TestMain:
         # Check that force_reauth=True was passed
         assert mock_authenticate.call_args[0][2] is True
 
-    @patch("sys.argv", ["garmin-mcp-auth", "--token-path", "/custom/path"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth", "--token-path", "/custom/path"])
     @patch("garmin_workouts_mcp.auth_cli.authenticate")
     def test_main_custom_token_path(self, mock_authenticate):
         """Test main function with custom token path."""
@@ -319,7 +319,7 @@ class TestMain:
         # Check that custom path was used
         assert "/custom/path" in mock_authenticate.call_args[0][0]
 
-    @patch("sys.argv", ["garmin-mcp-auth", "--is-cn"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth", "--is-cn"])
     @patch("garmin_workouts_mcp.auth_cli.authenticate")
     def test_main_is_cn_flag(self, mock_authenticate):
         """Test main function with --is-cn flag."""
@@ -332,7 +332,7 @@ class TestMain:
         # Check that is_cn=True was passed
         assert mock_authenticate.call_args[0][3] is True
 
-    @patch("sys.argv", ["garmin-mcp-auth"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth"])
     @patch("garmin_workouts_mcp.auth_cli.authenticate")
     def test_main_is_cn_env_var(self, mock_authenticate):
         """Test that GARMIN_IS_CN env var is used when --is-cn flag is not set."""
@@ -346,7 +346,7 @@ class TestMain:
         # Check that is_cn=True was passed via env var
         assert mock_authenticate.call_args[0][3] is True
 
-    @patch("sys.argv", ["garmin-mcp-auth"])
+    @patch("sys.argv", ["garmin-workouts-mcp-auth"])
     @patch("garmin_workouts_mcp.auth_cli.authenticate")
     def test_main_is_cn_default_false(self, mock_authenticate):
         """Test that is_cn defaults to False when neither flag nor env var is set."""

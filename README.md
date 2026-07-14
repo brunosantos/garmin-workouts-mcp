@@ -87,11 +87,11 @@ This server uses the [garminconnect](https://github.com/cyberjunky/python-garmin
 
 ### Security considerations
 > [!NOTE] 
-> [Garmin’s official API program](https://developer.garmin.com/gc-developer-program/program-faq/) is available for Enterprise use only and not for individual developers to access. I tried to get access to the official API but was denied because I'm doing this as a Open Source individual project. For that reason I turner to other existing open source libraries. The `garminconnect` library uses reverse-engineered API endpoints and relies on OAuth tokens obtained through the Garmin Connect web/mobile login flow. The `garmin-mcp-auth` tool is a workaround to obtain these tokens for use with the MCP server, but it is not an official or long-term solution.
+> [Garmin’s official API program](https://developer.garmin.com/gc-developer-program/program-faq/) is available for Enterprise use only and not for individual developers to access. I tried to get access to the official API but was denied because I'm doing this as a Open Source individual project. For that reason I turner to other existing open source libraries. The `garminconnect` library uses reverse-engineered API endpoints and relies on OAuth tokens obtained through the Garmin Connect web/mobile login flow. The `garmin-workouts-mcp-auth` tool is a workaround to obtain these tokens for use with the MCP server, but it is not an official or long-term solution.
 
 The Garmin Workouts MCP depends on the [Garmin connect library](https://github.com/cyberjunky/python-garminconnect) and that uses the [Garth library](https://github.com/matin/garth) for authentication, which relies on long lived OAuth tokens.
 The Garth library uses Garmin Connect’s mobile-app SSO flow to obtain and persist long-lived (one year) session tokens, which python-garminconnect (API Wrapper) then uses to call Garmin Connect API endpoints.
-The `garmin-mcp-auth` tool is a one-time setup utility that prompts you for your Garmin Connect credentials and MFA code (if enabled) to obtain these tokens. The tokens are then saved locally and used by the MCP server for authentication when making API requests to Garmin Connect.
+The `garmin-workouts-mcp-auth` tool is a one-time setup utility that prompts you for your Garmin Connect credentials and MFA code (if enabled) to obtain these tokens. The tokens are then saved locally and used by the MCP server for authentication when making API requests to Garmin Connect.
 
 The secret management in this solution can be considered insecure specially the use of long lived OAuth access tokens. We are working on alternatives such as short lived tokens with automatic refresh or integration with external secret managers or keyvaults. In the meantime, you must pre-authenticate to obtain the necessary tokens for the server to function. Use this tool at your own discretion and be aware of the security implications of storing credentials and tokens on your machine. However the scopes of the MCP tools are limited to read-only access for activities and read-write access for workouts, which minimizes potential risks.
 
@@ -107,7 +107,7 @@ Before adding to Claude Desktop or VS Code Copilot, authenticate once in your te
 ```bash
 
 # Install and run authentication tool
-uvx --python 3.12 --from git+https://github.com/brunosantos/garmin-workouts-mcp garmin-mcp-auth
+uvx --python 3.12 --from git+https://github.com/brunosantos/garmin-workouts-mcp garmin-workouts-mcp-auth
 
 # You'll be prompted for:
 # - Email (or set GARMIN_EMAIL env var)
@@ -119,7 +119,7 @@ uvx --python 3.12 --from git+https://github.com/brunosantos/garmin-workouts-mcp 
 
 You can verify your credentials at any time with
 ```bash
-uv run garmin-mcp-auth --verify
+uv run garmin-workouts-mcp-auth --verify
 ```
 
 **Note:** This will create a local file at `~/.garminconnect` with your Garmin Connect long lived tokens (one year). The MCP server will read from this file to authenticate API requests. These tokens will have a one year lifespan. 

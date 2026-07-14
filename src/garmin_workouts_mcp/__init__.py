@@ -35,7 +35,7 @@ def get_mfa() -> str:
     if not is_interactive_terminal():
         print(
             "\nERROR: MFA code required but no interactive terminal available.\n"
-            "Please run 'garmin-mcp-auth' in your terminal first.\n"
+            "Please run 'garmin-workouts-mcp-auth' in your terminal first.\n"
             "See: https://github.com/brunosantos/garmin-workouts-mcp?tab=readme-ov-file#step-1-pre-authenticate-one-time\n",
             file=sys.stderr,
         )
@@ -103,7 +103,7 @@ def init_api(email, password):
             print(
                 "ERROR: OAuth tokens not found and no interactive terminal available.\n"
                 "Please authenticate first:\n"
-                "  1. Run: garmin-mcp-auth\n"
+                "  1. Run: garmin-workouts-mcp-auth\n"
                 "  2. Enter your credentials and MFA code\n"
                 "  3. Restart your MCP client\n"
                 f"Tokens will be saved to: {tokenstore}\n",
@@ -175,7 +175,7 @@ def init_api(email, password):
                 print(f"Error: {error_msg.split(':')[0]}", file=sys.stderr)
 
             print(
-                f"\nTip: Run 'garmin-mcp-auth' to authenticate interactively.",
+                f"\nTip: Run 'garmin-workouts-mcp-auth' to authenticate interactively.",
                 file=sys.stderr,
             )
             return None
